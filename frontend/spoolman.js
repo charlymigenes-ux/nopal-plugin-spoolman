@@ -18,6 +18,13 @@
         materialFilter: 'all',
         statusFilter: 'all',
         loading: false,
+        alertsExpanded: false,
+        // Mini-cotizador de la barra lateral: cálculo local (precio real
+        // del spool elegido, sin pasar por un archivo real de Cotizador)
+        // -- es una previsualización de costo, no una cotización guardada.
+        miniQuoteSpoolId: null,
+        miniQuoteWeightG: '',
+        miniQuoteWastePercent: 10,
     };
 
     let root = null;
@@ -32,6 +39,7 @@
     const ICON_GRID = '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>';
     const ICON_LIST = '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>';
     const ICON_TRASH = '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 10v6M14 10v6"/>';
+    const ICON_REFRESH = '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>';
 
     const esc = value => typeof window.escapeHtml === 'function' ? window.escapeHtml(value) : String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
     const toast = (message, tone = 'success') => typeof window.showToast === 'function' ? window.showToast(message, tone) : console.log(message);
@@ -122,10 +130,10 @@
 
     // ── Render ──
 
-    function statTile(iconSvg, label, value, sub) {
+    function statTile(iconSvg, label, value, sub, colorKey) {
         return `
             <div class="spm-tile">
-                <div class="spm-tile-icon">${iconSvg}</div>
+                <div class="spm-tile-icon spm-tile-icon-${colorKey}">${iconSvg}</div>
                 <div class="spm-tile-body">
                     <span class="spm-tile-value">${esc(value)}</span>
                     <span class="spm-tile-label">${esc(label)}</span>
@@ -138,11 +146,11 @@
         const summary = state.summary || { active_spools: 0, available_kg: 0, low_stock_count: 0, reserved_kg: 0, consumption_month_kg: 0 };
         return `
             <div class="spm-tiles">
-                ${statTile(icon(ICON_SPOOL, 22), 'Bobinas activas', summary.active_spools, 'en inventario')}
-                ${statTile(icon(ICON_SCALE, 22), 'Disponible', `${summary.available_kg} kg`, 'listo para usar')}
-                ${statTile(icon(ICON_ALERT, 22), 'Bajo inventario', summary.low_stock_count, 'requieren atención')}
-                ${statTile(icon(ICON_LOCK, 22), 'Reservado', `${summary.reserved_kg} kg`, 'para producción')}
-                ${statTile(icon(ICON_CHART, 22), 'Consumo del mes', `${summary.consumption_month_kg} kg`, 'este mes')}
+                ${statTile(icon(ICON_SPOOL, 22), 'Bobinas activas', summary.active_spools, 'en inventario', 'green')}
+                ${statTile(icon(ICON_SCALE, 22), 'Disponible', `${summary.available_kg} kg`, 'listo para usar', 'blue')}
+                ${statTile(icon(ICON_ALERT, 22), 'Bajo inventario', summary.low_stock_count, 'requieren atención', 'orange')}
+                ${statTile(icon(ICON_LOCK, 22), 'Reservado', `${summary.reserved_kg} kg`, 'para producción', 'purple')}
+                ${statTile(icon(ICON_CHART, 22), 'Consumo del mes', `${summary.consumption_month_kg} kg`, 'este mes', 'blue')}
             </div>`;
     }
 
@@ -270,6 +278,13 @@
             </div>`;
     }
 
+    // Paleta fija para los materiales más comunes (coincide con la
+    // convención de color ya usada en el resto de NOPAL); cualquier
+    // material fuera de esta lista cae en el accent del tema en vez de
+    // inventar un color nuevo por material.
+    const MATERIAL_COLORS = { PLA: 'var(--green)', PETG: '#3b82f6', ABS: '#ef4444', TPU: 'var(--purple, #a855f7)', ASA: '#06b6d4' };
+    const materialColor = material => MATERIAL_COLORS[(material || '').toUpperCase()] || 'var(--spm-accent)';
+
     function renderConsumo() {
         const entries = Object.entries(state.consumption);
         const max = Math.max(1, ...entries.map(([, g]) => g));
@@ -279,7 +294,7 @@
                 ${entries.length ? entries.map(([material, grams]) => `
                     <div class="spm-consumo-row">
                         <span class="spm-consumo-label">${esc(material)}</span>
-                        <div class="spm-consumo-bar-track"><div class="spm-consumo-bar-fill" style="width:${Math.round((grams / max) * 100)}%"></div></div>
+                        <div class="spm-consumo-bar-track"><div class="spm-consumo-bar-fill" style="width:${Math.round((grams / max) * 100)}%;background:${materialColor(material)}"></div></div>
                         <span class="spm-consumo-value">${esc(fmtWeight(grams))}</span>
                     </div>`).join('') : '<div class="spm-empty">Todavía no hay consumo registrado este mes. Se va llenando con el uso real que reporte Spoolman.</div>'}
             </div>`;
@@ -315,6 +330,7 @@
                     <strong>${esc(printer.name || `Impresora ${printer.port}`)}</strong>
                     <span>${esc(stateKey)}</span>
                 </div>
+                ${spool ? `<span class="spm-color-dot spm-printer-spool-dot" style="background:${spoolColor(spool)}"></span>` : ''}
                 <select class="spm-printer-spool-select" data-spm-printer-port="${printer.port}">
                     <option value="">Sin spool asignado</option>
                     ${options}
@@ -323,26 +339,115 @@
             </div>`;
     }
 
+    function miniQuoteSpoolOptions() {
+        return state.spools.map(s => `<option value="${s.id}" ${state.miniQuoteSpoolId === s.id ? 'selected' : ''}>${esc(spoolLabel(s))} (${esc((s.filament || {}).vendor?.name || '')})</option>`).join('');
+    }
+
+    function computeMiniQuote() {
+        const spool = state.spools.find(s => s.id === state.miniQuoteSpoolId) || state.spools[0] || null;
+        const filament = spool?.filament || {};
+        const price = spool ? (spool.price || filament.price) : null;
+        const weightG = spool ? (spool.initial_weight || filament.weight) : null;
+        const costPerGram = price && weightG ? price / weightG : null;
+        const estimatedWeight = Number(state.miniQuoteWeightG) || 0;
+        const wastePercent = Number(state.miniQuoteWastePercent) || 0;
+        const materialWithWaste = estimatedWeight * (1 + wastePercent / 100);
+        const totalCost = costPerGram != null ? costPerGram * materialWithWaste : null;
+        return { costPerGram, totalCost };
+    }
+
+    // Recalcula y pisa solo el texto de los 2 resultados, sin tocar los
+    // <input> -- si esto llamara a render() en cada tecleo, innerHTML
+    // recrearía el campo de texto en cada letra y el foco/cursor se
+    // perdería a mitad de escribir.
+    function updateMiniQuoteTotals() {
+        const { costPerGram, totalCost } = computeMiniQuote();
+        const costEl = root.querySelector('#spm-mq-cost');
+        const totalEl = root.querySelector('#spm-mq-total');
+        if (costEl) costEl.textContent = costPerGram != null ? fmtMoney(costPerGram) : '—';
+        if (totalEl) totalEl.textContent = totalCost != null ? fmtMoney(totalCost) : '—';
+    }
+
+    function renderMiniCotizador() {
+        const { costPerGram, totalCost } = computeMiniQuote();
+        return `
+            <section class="spm-sidebar-card spm-mini-cotizador">
+                <h3>Cotizador NOPAL</h3>
+                <label class="spm-mini-field">
+                    <span>Material seleccionado</span>
+                    <select id="spm-mq-spool">${miniQuoteSpoolOptions() || '<option value="">Sin spools</option>'}</select>
+                </label>
+                <div class="spm-mini-stat"><span>Costo/g</span><strong id="spm-mq-cost">${costPerGram != null ? fmtMoney(costPerGram) : '—'}</strong></div>
+                <label class="spm-mini-field">
+                    <span>Peso estimado (g)</span>
+                    <input type="number" id="spm-mq-weight" min="0" step="1" value="${esc(state.miniQuoteWeightG)}" placeholder="0">
+                </label>
+                <label class="spm-mini-field">
+                    <span>Desperdicio (%)</span>
+                    <input type="number" id="spm-mq-waste" min="0" max="100" step="1" value="${esc(state.miniQuoteWastePercent)}">
+                </label>
+                <div class="spm-mini-stat spm-mini-stat-total"><span>Total material</span><strong id="spm-mq-total">${totalCost != null ? fmtMoney(totalCost) : '—'}</strong></div>
+            </section>`;
+    }
+
+    function renderMiniConsumo() {
+        const entries = Object.entries(state.consumption);
+        const max = Math.max(1, ...entries.map(([, g]) => g));
+        const totalKg = entries.reduce((sum, [, g]) => sum + g, 0) / 1000;
+        return `
+            <section class="spm-sidebar-card spm-mini-consumo">
+                <h3>Consumo mensual</h3>
+                ${entries.length ? entries.map(([material, grams]) => `
+                    <div class="spm-mini-consumo-row">
+                        <span>${esc(material)}</span>
+                        <div class="spm-consumo-bar-track"><div class="spm-consumo-bar-fill" style="width:${Math.round((grams / max) * 100)}%;background:${materialColor(material)}"></div></div>
+                        <strong>${esc(fmtWeight(grams))}</strong>
+                    </div>`).join('') : '<div class="spm-empty">Sin consumo este mes.</div>'}
+                <div class="spm-mini-consumo-total">Total: ${totalKg.toFixed(1)} kg</div>
+            </section>`;
+    }
+
+    function renderMiniAlertas() {
+        const visible = state.alertsExpanded ? state.alerts : state.alerts.slice(0, 3);
+        return `
+            <section class="spm-sidebar-card spm-mini-alertas">
+                <h3>Alertas</h3>
+                ${visible.length ? visible.map(a => `
+                    <div class="spm-alert-row spm-alert-${esc(a.severity)}">${icon(ICON_ALERT, 14)}<span>${esc(a.message)}</span></div>
+                `).join('') : '<div class="spm-empty">Sin alertas activas.</div>'}
+                ${state.alerts.length > 3 ? `<button type="button" class="spm-mini-alertas-toggle" id="spm-toggle-alerts">${state.alertsExpanded ? 'Ver menos' : 'Ver todas las alertas'}</button>` : ''}
+            </section>`;
+    }
+
     function renderSidebar() {
         if (!state.config?.configured) return '';
         return `
             <aside class="spm-sidebar">
                 <section class="spm-sidebar-card">
-                    <h3>Impresoras y spool asignado</h3>
+                    <div class="spm-sidebar-card-header">
+                        <h3>Impresoras y spool asignado</h3>
+                        <button type="button" class="spm-icon-btn" id="spm-refresh-printers" title="Actualizar">${icon(ICON_REFRESH, 14)}</button>
+                    </div>
                     ${state.printers.length ? state.printers.map(renderPrinterRow).join('') : '<div class="spm-empty">No se detectaron impresoras Klipper.</div>'}
                 </section>
                 <section class="spm-sidebar-card">
                     <h3>Reservas para producción</h3>
-                    ${state.reservations.length ? state.reservations.slice(0, 5).map(r => `
-                        <div class="spm-mini-row"><span>${esc(r.quote_label)}</span><strong>${esc(fmtWeight(r.grams))}</strong></div>
-                    `).join('') : '<div class="spm-empty">Sin reservas.</div>'}
+                    ${state.reservations.length ? state.reservations.slice(0, 5).map(r => {
+                        const spool = state.spools.find(s => s.id === r.spool_id);
+                        return `
+                        <div class="spm-mini-row">
+                            ${icon(ICON_LOCK, 14)}
+                            <span class="spm-mini-row-label">${esc(r.quote_label)}</span>
+                            ${spool ? `<span class="spm-color-dot spm-mini-row-dot" style="background:${spoolColor(spool)}"></span><span class="spm-mini-row-material">${esc(spoolLabel(spool))}</span>` : ''}
+                            <strong>${esc(fmtWeight(r.grams))}</strong>
+                        </div>`;
+                    }).join('') : '<div class="spm-empty">Sin reservas.</div>'}
                 </section>
-                <section class="spm-sidebar-card">
-                    <h3>Alertas</h3>
-                    ${state.alerts.length ? state.alerts.map(a => `
-                        <div class="spm-alert-row spm-alert-${esc(a.severity)}">${icon(ICON_ALERT, 14)}<span>${esc(a.message)}</span></div>
-                    `).join('') : '<div class="spm-empty">Sin alertas activas.</div>'}
-                </section>
+                <div class="spm-sidebar-mini-row">
+                    ${renderMiniCotizador()}
+                    ${renderMiniConsumo()}
+                    ${renderMiniAlertas()}
+                </div>
             </aside>`;
     }
 
@@ -379,13 +484,15 @@
                     <header class="spm-header">
                         <div class="spm-header-copy">
                             <h1>Materiales</h1>
-                            <span class="spm-header-sub">Inventario de filamentos e insumos</span>
+                            <div class="spm-header-subrow">
+                                <span class="spm-header-sub">Inventario de filamentos e insumos</span>
+                                <span class="spm-status-pill ${state.config?.connected ? 'spm-status-ok' : 'spm-status-off'}">
+                                    <span class="spm-status-dot"></span>
+                                    Spoolman ${state.config?.connected ? '· Conectado' : '· Desconectado'}
+                                </span>
+                            </div>
                         </div>
                         <div class="spm-header-actions">
-                            <span class="spm-status-pill ${state.config?.connected ? 'spm-status-ok' : 'spm-status-off'}">
-                                <span class="spm-status-dot"></span>
-                                Spoolman ${state.config?.connected ? '· Conectado' : '· Desconectado'}
-                            </span>
                             <button type="button" class="spm-icon-btn" id="spm-open-settings" title="Configurar conexión">${icon(ICON_SETTINGS, 18)}</button>
                         </div>
                     </header>
@@ -418,8 +525,34 @@
             <p class="spm-footer-note">Inventario físico gestionado por Spoolman · Reservas, cotización y producción gestionadas por NOPAL</p>`;
     }
 
+    // render() reemplaza #spm-body entero -- sin esto, escribir en el
+    // buscador de Filamentos (que sí necesita un render completo, filtra
+    // toda la grilla) perdía el foco/cursor en cada letra porque innerHTML
+    // recrea el <input> de cero. Se guarda foco + selección antes y se
+    // restaura después si el mismo id sigue existiendo en el HTML nuevo.
+    function withPreservedFocus(fn) {
+        const active = document.activeElement;
+        const hadFocus = active && root?.contains(active) && active.id;
+        const selectionStart = hadFocus && 'selectionStart' in active ? active.selectionStart : null;
+        const selectionEnd = hadFocus && 'selectionEnd' in active ? active.selectionEnd : null;
+        fn();
+        if (hadFocus) {
+            const restored = root.querySelector(`#${CSS.escape(active.id)}`);
+            if (restored) {
+                restored.focus();
+                if (selectionStart != null && 'setSelectionRange' in restored) {
+                    try { restored.setSelectionRange(selectionStart, selectionEnd); } catch (error) { /* tipos sin selección (number, etc.) */ }
+                }
+            }
+        }
+    }
+
     function render() {
         if (!root) return;
+        withPreservedFocus(renderBody);
+    }
+
+    function renderBody() {
         const body = root.querySelector('#spm-body');
         if (body) body.innerHTML = state.config?.configured ? renderConfiguredBody() : renderNotConfiguredPrompt();
         const statusPill = root.querySelector('.spm-status-pill');
@@ -474,6 +607,27 @@
     }
 
     function bindBodyEvents() {
+        root.querySelector('#spm-refresh-printers')?.addEventListener('click', async () => {
+            await loadDashboardData();
+            render();
+        });
+        root.querySelector('#spm-mq-spool')?.addEventListener('change', event => {
+            state.miniQuoteSpoolId = Number(event.target.value) || null;
+            render();
+        });
+        root.querySelector('#spm-mq-weight')?.addEventListener('input', event => {
+            state.miniQuoteWeightG = event.target.value;
+            updateMiniQuoteTotals();
+        });
+        root.querySelector('#spm-mq-waste')?.addEventListener('input', event => {
+            state.miniQuoteWastePercent = event.target.value;
+            updateMiniQuoteTotals();
+        });
+        root.querySelector('#spm-toggle-alerts')?.addEventListener('click', () => {
+            state.alertsExpanded = !state.alertsExpanded;
+            render();
+        });
+
         root.querySelectorAll('[data-spm-tab]').forEach(btn => {
             btn.addEventListener('click', () => { state.activeTab = btn.dataset.spmTab; render(); });
         });
@@ -577,7 +731,13 @@
         navButton.dataset.pluginNav = PLUGIN_ID;
         navButton.title = 'Materiales';
         navButton.innerHTML = `${icon(ICON_SPOOL, 20)}<span>Materiales</span>`;
-        navButton.addEventListener('click', () => window.switchSection?.('spoolman'));
+        // El plugin monta una sola vez y la sección queda en el DOM -- sin
+        // esto, volver a "Materiales" después de visitar otra sección
+        // mostraba datos ya viejos hasta el próximo refresh manual.
+        navButton.addEventListener('click', () => {
+            window.switchSection?.('spoolman');
+            refreshAll();
+        });
         pluginsContainer?.appendChild(navButton);
 
         const wrapper = document.createElement('div');

@@ -1,5 +1,7 @@
-/* Integración con los temas de NOPAL — mismas variables que el resto del
-   dashboard (light/dark/green/red/custom), nada de colores fijos. */
+/* Este plugin sigue el diseño fijo de la referencia (no las reglas
+   dinámicas de tema del resto de NOPAL) -- a pedido explícito: fondo negro
+   al 40% de opacidad sobre todo el panel (deja ver el motivo de circuito
+   de fondo de NOPAL atenuado, no un color sólido distinto). */
 .spm-section {
     --spm-accent: var(--accent);
     --spm-accent-rgb: var(--accent-rgb);
@@ -7,33 +9,43 @@
     --spm-panel: color-mix(in srgb, var(--panel-bg) 94%, transparent);
     --spm-control: color-mix(in srgb, var(--bg) 74%, var(--card-bg));
     --spm-border: var(--border);
-    background: var(--bg);
     color: var(--text);
+    background: rgba(0, 0, 0, 0.4);
 }
 
 .spm-scroll {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 24px 28px 40px;
     display: flex;
     flex-direction: column;
     gap: 18px;
 }
 
+/* Los 3 bloques del cuerpo (tiles, layout principal, nota final) no
+   tenían separación propia -- heredaban el gap de .spm-scroll solo entre
+   .spm-header y #spm-body como conjunto, no ENTRE estos 3 hijos, así que
+   quedaban pegados unos con otros sin aire. */
+#spm-body {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+}
+
 /* ── Encabezado ── */
+/* Sin ficha/contenedor propio -- flota directo sobre el fondo del panel. */
 .spm-header {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 18px 22px;
-    border: 1px solid var(--spm-border);
-    border-radius: var(--radius-lg, 14px);
-    background: linear-gradient(135deg, var(--spm-panel), var(--spm-card));
 }
 .spm-header-copy h1 { margin: 0; font-size: 1.35rem; color: var(--text); }
+.spm-header-subrow { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 2px; }
 .spm-header-sub { color: var(--text-muted); font-size: .82rem; }
 .spm-header-actions { display: flex; align-items: center; gap: 10px; }
 
@@ -74,8 +86,9 @@
 .spm-tile {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 16px;
+    gap: 14px;
+    min-height: 96px;
+    padding: 20px;
     border: 1px solid var(--spm-border);
     border-radius: var(--radius-lg, 14px);
     background: var(--spm-card);
@@ -83,21 +96,40 @@
 .spm-tile-icon {
     display: grid;
     place-items: center;
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
     background: rgba(var(--spm-accent-rgb), .14);
     color: var(--spm-accent);
     flex-shrink: 0;
 }
-.spm-tile-body { display: flex; flex-direction: column; }
+/* Cada tile de Resumen tiene su propio color semántico (verde = estado
+   sano, azul = informativo, naranja = atención, morado = reservado/bloqueado)
+   en vez de repetir el accent del tema en los 5 -- así se distinguen de un
+   vistazo, igual que en la referencia de diseño. */
+.spm-tile-icon-green { background: rgba(34, 197, 94, .14); color: var(--green); }
+.spm-tile-icon-blue { background: rgba(59, 130, 246, .14); color: #3b82f6; }
+.spm-tile-icon-orange { background: rgba(249, 115, 22, .14); color: var(--orange); }
+.spm-tile-icon-purple { background: rgba(168, 85, 247, .14); color: var(--purple, #a855f7); }
+.spm-tile-body { display: flex; flex-direction: column; justify-content: center; min-height: 52px; }
 .spm-tile-value { font-size: 1.3rem; font-weight: 700; color: var(--text); }
 .spm-tile-label { font-size: .78rem; color: var(--text-secondary); }
 .spm-tile-sub { font-size: .7rem; color: var(--text-muted); }
 
 /* ── Layout principal + sidebar ── */
-.spm-main-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
-.spm-main-content { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.spm-main-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
+/* Degradado gris rata -> transparente en vez de una ficha propia -- pedido
+   explícito, distinto del resto de NOPAL donde todo bloque de contenido
+   usa var(--card-bg) plano. */
+.spm-main-content {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    border-radius: var(--radius-lg, 14px);
+    background: linear-gradient(180deg, rgba(90, 90, 95, 0.35), transparent);
+}
 
 .spm-tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--spm-border); padding-bottom: 6px; }
 .spm-tab {
@@ -231,6 +263,9 @@
     background: var(--spm-card);
 }
 .spm-sidebar-card h3 { margin: 0 0 10px; font-size: .82rem; color: var(--text); }
+.spm-sidebar-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.spm-sidebar-card-header h3 { margin: 0; }
+.spm-sidebar-card-header .spm-icon-btn { width: 26px; height: 26px; }
 
 .spm-printer-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--spm-border); flex-wrap: wrap; }
 .spm-printer-row:last-child { border-bottom: none; }
@@ -241,6 +276,7 @@
 .spm-printer-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .spm-printer-info strong { font-size: .8rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spm-printer-info span { font-size: .7rem; color: var(--text-muted); }
+.spm-printer-spool-dot { margin-left: 0; flex-shrink: 0; }
 .spm-printer-spool-select {
     max-width: 140px;
     padding: 5px 8px;
@@ -252,8 +288,52 @@
 }
 .spm-printer-weight { font-size: .72rem; color: var(--text-muted); flex-shrink: 0; }
 
-.spm-mini-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; font-size: .78rem; }
+.spm-mini-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: .78rem; }
 .spm-mini-row:not(:last-child) { border-bottom: 1px solid var(--spm-border); }
+.spm-mini-row-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spm-mini-row-dot { margin-left: 0; flex-shrink: 0; }
+.spm-mini-row-material { color: var(--text-muted); font-size: .72rem; flex-shrink: 0; }
+.spm-mini-row strong { flex-shrink: 0; }
+
+/* ── Fila de mini-widgets (Cotizador / Consumo / Alertas) ── */
+.spm-sidebar-mini-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.spm-sidebar-mini-row .spm-sidebar-card { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.spm-sidebar-mini-row .spm-sidebar-card h3 { margin: 0; }
+
+.spm-mini-field { display: flex; flex-direction: column; gap: 3px; font-size: .68rem; color: var(--text-secondary); }
+.spm-mini-field select, .spm-mini-field input {
+    padding: 5px 7px;
+    border: 1px solid var(--spm-border);
+    border-radius: 7px;
+    background: var(--spm-control);
+    color: var(--text);
+    font-size: .74rem;
+}
+.spm-mini-stat { display: flex; align-items: center; justify-content: space-between; font-size: .72rem; color: var(--text-secondary); }
+.spm-mini-stat strong { color: var(--text); font-size: .8rem; }
+.spm-mini-stat-total { padding-top: 6px; border-top: 1px solid var(--spm-border); }
+.spm-mini-stat-total strong { color: var(--spm-accent); }
+
+.spm-mini-consumo-row { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 6px; font-size: .7rem; }
+.spm-mini-consumo-row strong { font-size: .68rem; color: var(--text-muted); font-weight: 600; }
+.spm-mini-consumo-total { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--spm-border); font-size: .74rem; color: var(--text); font-weight: 600; }
+
+.spm-mini-alertas .spm-alert-row { padding: 6px 0; font-size: .7rem; }
+.spm-mini-alertas-toggle {
+    align-self: flex-start;
+    margin-top: 2px;
+    border: none;
+    background: none;
+    color: var(--spm-accent);
+    font-size: .72rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+@media (max-width: 760px) {
+    .spm-sidebar-mini-row { grid-template-columns: 1fr; }
+}
 
 .spm-alert-row {
     display: flex;
@@ -286,6 +366,11 @@
 
 /* ── Panel de configuración (overlay) ── */
 .spm-panel-overlay { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; }
+/* [hidden] del navegador (display:none) empata en especificidad con la
+   regla de arriba (ambas 0-1-0) -- sin esto, la de acá ganaba por venir
+   después en el cascade y el panel de Configuración quedaba SIEMPRE
+   visible encima de todo, con el atributo hidden puesto pero ignorado. */
+.spm-panel-overlay[hidden] { display: none; }
 .spm-panel-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); }
 .spm-panel-dialog {
     position: relative;
