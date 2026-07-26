@@ -364,6 +364,30 @@
 .spm-config-card p { color: var(--text-muted); font-size: .85rem; margin: 0 0 6px; }
 .spm-config-card .spm-form { width: 100%; text-align: left; }
 
+.spm-discovery-status { display: flex; align-items: center; gap: 6px; justify-content: center; color: var(--text-muted); font-size: .8rem; width: 100%; margin: 0; }
+.spm-discovery-status svg { animation: spm-spin 1.1s linear infinite; }
+@keyframes spm-spin { to { transform: rotate(360deg); } }
+.spm-link-btn { background: none; border: none; padding: 0; color: var(--spm-accent); font-weight: 600; cursor: pointer; font-size: inherit; }
+.spm-discovery-found { font-size: .78rem; color: var(--text-muted); margin: 0 0 4px; text-align: center; }
+.spm-discovery-list { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.spm-discovery-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--spm-border);
+    border-radius: 10px;
+    background: var(--spm-card);
+    color: var(--spm-accent);
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+}
+.spm-discovery-item:hover { border-color: var(--spm-accent); }
+.spm-discovery-item-body { display: flex; flex-direction: column; gap: 1px; color: var(--text); }
+.spm-discovery-item-body strong { font-size: .85rem; }
+.spm-discovery-item-body small { color: var(--text-muted); font-size: .72rem; }
+
 /* ── Panel de configuración (overlay) ── */
 .spm-panel-overlay { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; }
 /* [hidden] del navegador (display:none) empata en especificidad con la

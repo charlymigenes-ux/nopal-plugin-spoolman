@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException
 
 from backend.auth_deps import require_auth, require_role
 
-from .services import config_service, consumption_service, reservation_service, spool_link_service
+from .services import config_service, consumption_service, discovery_service, reservation_service, spool_link_service
 from .services.spoolman_client import SpoolmanClient
 
 logger = logging.getLogger(__name__)
@@ -79,6 +79,14 @@ async def save_config_endpoint(
 async def delete_config_endpoint(user: dict = Depends(require_role("admin"))):
     config_service.clear_config()
     return {"success": True}
+
+
+@router.get("/api/spoolman/discover")
+async def discover_config_endpoint(user: dict = Depends(require_auth)):
+    """Sondea localhost y la red local en busca de servidores Spoolman
+    reales, para ofrecerlos como opción antes de forzar tipear host/puerto."""
+    instances = await discovery_service.discover()
+    return {"instances": instances}
 
 
 # ── Spools (Spoolman es la fuente; acá solo se le suma reserved/available) ──

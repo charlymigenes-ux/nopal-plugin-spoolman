@@ -19,6 +19,11 @@
         statusFilter: 'all',
         loading: false,
         alertsExpanded: false,
+        // null = todavía no se buscó en esta sesión; [] = se buscó y no
+        // apareció nada; distinguir estos dos casos evita relanzar el
+        // escaneo de red en cada visita a la sección si ya no encontró nada.
+        discovering: false,
+        discovered: null,
         // Mini-cotizador de la barra lateral: cálculo local (precio real
         // del spool elegido, sin pasar por un archivo real de Cotizador)
         // -- es una previsualización de costo, no una cotización guardada.
@@ -123,9 +128,42 @@
             } catch (error) {
                 console.error(error);
             }
+        } else if (state.discovered === null && !state.discovering) {
+            discoverSpoolman();
         }
         state.loading = false;
         render();
+    }
+
+    // Barrido de localhost + red local buscando servidores Spoolman reales
+    // -- corre aparte del flujo de refreshAll (no se espera) para no
+    // demorar el primer render de la pantalla "no configurado" mientras
+    // dura el escaneo (~1-2s).
+    async function discoverSpoolman() {
+        state.discovering = true;
+        render();
+        try {
+            const data = await api('/api/spoolman/discover');
+            state.discovered = data.instances || [];
+        } catch (error) {
+            console.error(error);
+            state.discovered = [];
+        }
+        state.discovering = false;
+        render();
+    }
+
+    async function connectToDiscovered(host, port) {
+        const formData = new FormData();
+        formData.append('host', host);
+        formData.append('port', port);
+        try {
+            await api('/api/spoolman/config', { method: 'POST', body: formData });
+            toast('Conectado con Spoolman');
+            await refreshAll();
+        } catch (error) {
+            alertDialog(error.message || 'No se pudo conectar con Spoolman');
+        }
     }
 
     // ── Render ──
@@ -465,6 +503,29 @@
             </form>`;
     }
 
+    function renderDiscoveryResults() {
+        if (state.discovering) {
+            return `<p class="spm-discovery-status">${icon(ICON_REFRESH, 14)}<span>Buscando Spoolman en tu red...</span></p>`;
+        }
+        if (state.discovered === null) return '';
+        if (!state.discovered.length) {
+            return `<p class="spm-discovery-status"><span>No se encontró ningún Spoolman en tu red local.</span> <button type="button" class="spm-link-btn" data-spm-discover-again>Buscar de nuevo</button></p>`;
+        }
+        return `
+            <div class="spm-discovery-list">
+                <p class="spm-discovery-found">Encontramos ${state.discovered.length} servidor(es) Spoolman:</p>
+                ${state.discovered.map(item => `
+                    <button type="button" class="spm-discovery-item" data-spm-connect-host="${esc(item.host)}" data-spm-connect-port="${esc(item.port)}">
+                        ${icon(ICON_SPOOL, 18)}
+                        <span class="spm-discovery-item-body">
+                            <strong>${esc(item.host)}:${esc(item.port)}</strong>
+                            <small>${item.host === '127.0.0.1' ? 'Este mismo servidor' : 'En tu red local'}${item.info?.version ? ` · v${esc(item.info.version)}` : ''}</small>
+                        </span>
+                    </button>
+                `).join('')}
+            </div>`;
+    }
+
     function renderNotConfiguredPrompt() {
         return `
             <div class="spm-config-gate">
@@ -472,7 +533,8 @@
                     ${icon(ICON_SPOOL, 40)}
                     <h2>Conectá tu servidor Spoolman</h2>
                     <p>NOPAL va a leer tu inventario real de spools desde ahí -- no se duplica ni se inventa nada.</p>
-                    <button type="button" class="spm-btn-accent" data-spm-open-settings-inline>Configurar conexión</button>
+                    ${renderDiscoveryResults()}
+                    <button type="button" class="spm-btn-accent" data-spm-open-settings-inline>Configurar conexión manualmente</button>
                 </div>
             </div>`;
     }
@@ -644,6 +706,10 @@
                 if (panel) panel.hidden = false;
             });
         });
+        root.querySelectorAll('[data-spm-connect-host]').forEach(btn => {
+            btn.addEventListener('click', () => connectToDiscovered(btn.dataset.spmConnectHost, btn.dataset.spmConnectPort));
+        });
+        root.querySelector('[data-spm-discover-again]')?.addEventListener('click', () => discoverSpoolman());
         root.querySelector('#spm-reservation-form')?.addEventListener('submit', handleReservationSubmit);
         root.querySelector('#spm-quote-select')?.addEventListener('change', event => {
             const option = event.target.options[event.target.selectedIndex];

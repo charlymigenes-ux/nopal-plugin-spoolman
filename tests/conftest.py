@@ -57,7 +57,7 @@ ADMIN_USER = {"id": "test-admin", "username": "test-admin", "role": "admin"}
 OPERATOR_USER = {"id": "test-operator", "username": "test-operator", "role": "operator"}
 
 _TEST_NAMESPACE = "nopal_plugin_test_spoolman"
-_SERVICE_MODULES = ["config_service", "spool_link_service", "reservation_service", "consumption_service", "spoolman_client"]
+_SERVICE_MODULES = ["config_service", "spool_link_service", "reservation_service", "consumption_service", "spoolman_client", "discovery_service"]
 
 
 def _install_alias(dotted_name: str, module: types.ModuleType) -> None:
