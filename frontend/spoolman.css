@@ -1,7 +1,9 @@
 /* Este plugin sigue el diseño fijo de la referencia (no las reglas
    dinámicas de tema del resto de NOPAL) -- a pedido explícito: fondo negro
-   al 40% de opacidad sobre todo el panel (deja ver el motivo de circuito
-   de fondo de NOPAL atenuado, no un color sólido distinto). */
+   al 40% de opacidad sobre el cuerpo (#spm-body), no sobre la sección
+   entera, para que el encabezado ("Materiales") quede transparente y se
+   vea el wallpaper de NOPAL sin atenuar detrás -- el resto del cuerpo sigue
+   viendo el motivo de fondo atenuado, no un color sólido distinto. */
 .spm-section {
     --spm-accent: var(--accent);
     --spm-accent-rgb: var(--accent-rgb);
@@ -10,7 +12,6 @@
     --spm-control: color-mix(in srgb, var(--bg) 74%, var(--card-bg));
     --spm-border: var(--border);
     color: var(--text);
-    background: rgba(0, 0, 0, 0.4);
 }
 
 .spm-scroll {
@@ -33,6 +34,8 @@
     flex-direction: column;
     gap: 18px;
     min-width: 0;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: var(--radius-lg, 14px);
 }
 
 /* ── Encabezado ── */
@@ -296,7 +299,11 @@
 .spm-mini-row strong { flex-shrink: 0; }
 
 /* ── Fila de mini-widgets (Cotizador / Consumo / Alertas) ── */
-.spm-sidebar-mini-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+/* minmax(0, 1fr) y no 1fr solo -- igual que .spm-main-layout/.spm-reservas-layout
+   más abajo: sin el mínimo en 0, el <select> del cotizador (con nombres de
+   spool largos) fija el ancho mínimo de columna a su min-content y las 3
+   tarjetas terminan empujando el layout fuera de la pantalla. */
+.spm-sidebar-mini-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .spm-sidebar-mini-row .spm-sidebar-card { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .spm-sidebar-mini-row .spm-sidebar-card h3 { margin: 0; }
 
@@ -329,6 +336,29 @@
     font-weight: 600;
     cursor: pointer;
     padding: 0;
+}
+
+/* ── Tarjeta de acceso directo al servidor Spoolman ── */
+.spm-external-link-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.spm-external-link-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: .85rem;
+    color: var(--text);
+}
+.spm-external-link-btn {
+    align-self: center;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
 }
 
 @media (max-width: 760px) {

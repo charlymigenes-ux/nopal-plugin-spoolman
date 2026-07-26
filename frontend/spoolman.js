@@ -457,6 +457,20 @@
             </section>`;
     }
 
+    function renderSpoolmanLinkCard() {
+        const { host, port } = state.config || {};
+        if (!host || !port) return '';
+        const url = `http://${host}:${port}`;
+        return `
+            <section class="spm-sidebar-card spm-external-link-card">
+                <div class="spm-external-link-brand">
+                    ${icon(ICON_SPOOL, 22)}
+                    <span>Spoolman</span>
+                </div>
+                <a class="spm-btn-accent spm-external-link-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Ir a Spoolman</a>
+            </section>`;
+    }
+
     function renderSidebar() {
         if (!state.config?.configured) return '';
         return `
@@ -486,6 +500,7 @@
                     ${renderMiniConsumo()}
                     ${renderMiniAlertas()}
                 </div>
+                ${renderSpoolmanLinkCard()}
             </aside>`;
     }
 
