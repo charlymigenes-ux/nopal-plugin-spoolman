@@ -5,6 +5,9 @@ Conecta [NOPAL](https://github.com/charlymigenes-ux/nopal) con un servidor
 de spools de filamento, asignarlos a tus impresoras Klipper, reservar
 material para producción y usar sus costos reales en el Cotizador de NOPAL.
 
+<img width="1672" height="941" alt="Materiales" src="https://github.com/user-attachments/assets/df8bf76e-9fcc-43cb-aeb3-53499926690a" />
+
+
 Spoolman sigue siendo el dueño del inventario físico (spool, fabricante,
 peso, costo, ubicación); este plugin agrega la capa de negocio encima
 (impresora → spool asignado, pedido → material reservado, cotización →
