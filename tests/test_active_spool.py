@@ -63,3 +63,43 @@ class TestActiveSpool:
     def test_write_endpoints_require_admin(self, client, as_operator):
         response = client.post("/api/spoolman/printers/7125/active-spool", data={"spool_id": 17})
         assert response.status_code == 403
+
+
+class TestMaterialResuelto:
+    """El panel muestra qué material tiene cargado cada impresora. Resolverlo
+    de una sola pasada evita una consulta a Spoolman por máquina solo para
+    pintar una línea de texto en la ficha."""
+
+    def test_resuelve_material_color_y_restante(self, client, as_admin, monkeypatch):
+        _configure(client, monkeypatch)
+        monkeypatch.setattr(SpoolmanClient, "list_spools",
+                            lambda self, allow_archived=False: [dict(SAMPLE_SPOOL)])
+        client.post("/api/spoolman/printers/7125/active-spool", data={"spool_id": 17})
+
+        entrada = client.get("/api/spoolman/printers/active-spools?resolve=true").json()["links"]["7125"]
+        assert entrada["label"] == "Blanco"      # el nombre comercial es lo que se reconoce
+        assert entrada["material"] == "PLA"
+        assert entrada["vendor"] == "SUNLU"
+        assert entrada["remaining_weight"] == 812
+
+    def test_sin_resolve_devuelve_solo_el_vinculo(self, client, as_admin, monkeypatch):
+        """El comportamiento anterior no cambia para quien ya lo usaba."""
+        _configure(client, monkeypatch)
+        client.post("/api/spoolman/printers/7125/active-spool", data={"spool_id": 17})
+        entrada = client.get("/api/spoolman/printers/active-spools").json()["links"]["7125"]
+        assert entrada["spool_id"] == 17
+        assert "material" not in entrada
+
+    def test_si_spoolman_no_responde_no_se_rompe_la_ficha(self, client, as_admin, monkeypatch):
+        """Quedarse sin el dato del material es muy distinto a quedarse sin
+        ficha: se devuelven los vínculos igual."""
+        _configure(client, monkeypatch)
+        client.post("/api/spoolman/printers/7125/active-spool", data={"spool_id": 17})
+
+        def _cae(self, allow_archived=False):
+            raise RuntimeError("Spoolman no responde")
+
+        monkeypatch.setattr(SpoolmanClient, "list_spools", _cae)
+        respuesta = client.get("/api/spoolman/printers/active-spools?resolve=true")
+        assert respuesta.status_code == 200
+        assert respuesta.json()["links"]["7125"]["spool_id"] == 17

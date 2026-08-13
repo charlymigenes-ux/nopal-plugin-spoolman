@@ -177,8 +177,45 @@ async def alerts_endpoint(user: dict = Depends(require_auth)):
 # ── Spool activo por impresora (Klipper únicamente por ahora) ──
 
 @router.get("/api/spoolman/printers/active-spools")
-async def all_active_spools_endpoint(user: dict = Depends(require_auth)):
-    return {"links": spool_link_service.get_all_links()}
+async def all_active_spools_endpoint(resolve: bool = False, user: dict = Depends(require_auth)):
+    """Qué carrete tiene cargado cada impresora.
+
+    Con `resolve=true` se devuelve además el material y el color de cada
+    uno, resueltos de una sola pasada. El panel muestra eso en la ficha de
+    cada impresora: sin este parámetro tendría que pedir un spool por
+    máquina, y con varias impresoras eso son varias consultas a Spoolman
+    para pintar una línea de texto.
+
+    Si Spoolman no está configurado o no responde, se devuelven los
+    vínculos igual y sin material -- la ficha se queda sin ese dato en vez
+    de romperse entera.
+    """
+    links = spool_link_service.get_all_links()
+    if not resolve or not links:
+        return {"links": links}
+
+    try:
+        client = _require_client()
+        spools = {str(s.get("id")): s for s in client.list_spools()}
+    except Exception as exc:
+        logger.warning(f"No se pudo resolver el material cargado: {exc}")
+        return {"links": links}
+
+    resueltos = {}
+    for port, link in links.items():
+        spool = spools.get(str(link.get("spool_id")))
+        filamento = (spool or {}).get("filament") or {}
+        resueltos[port] = {
+            **link,
+            "material": filamento.get("material"),
+            "color_hex": filamento.get("color_hex"),
+            # El nombre comercial ("PLA Verde") es lo que el usuario
+            # reconoce; el material suelto ("PLA") es el respaldo.
+            "label": filamento.get("name") or filamento.get("material"),
+            "vendor": (filamento.get("vendor") or {}).get("name"),
+            "remaining_weight": (spool or {}).get("remaining_weight"),
+        }
+    return {"links": resueltos}
 
 
 @router.get("/api/spoolman/printers/{port}/active-spool")
