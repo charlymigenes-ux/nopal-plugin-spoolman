@@ -205,10 +205,18 @@ async def all_active_spools_endpoint(resolve: bool = False, user: dict = Depends
     for port, link in links.items():
         spool = spools.get(str(link.get("spool_id")))
         filamento = (spool or {}).get("filament") or {}
+        # Un filamento multicolor no tiene color_hex (queda None) -- Spoolman
+        # guarda sus colores en multi_color_hexes, una lista separada por
+        # comas ("37c53e,f2dd1d"), más la técnica (multi_color_direction:
+        # "coaxial" o "longitudinal"). Sin esto, un filamento multicolor
+        # real se veía sin color en la ficha en vez de con los suyos.
+        multi_hex = filamento.get("multi_color_hexes")
         resueltos[port] = {
             **link,
             "material": filamento.get("material"),
             "color_hex": filamento.get("color_hex"),
+            "multi_color_hexes": [h.strip() for h in multi_hex.split(",") if h.strip()] if multi_hex else None,
+            "multi_color_direction": filamento.get("multi_color_direction"),
             # El nombre comercial ("PLA Verde") es lo que el usuario
             # reconoce; el material suelto ("PLA") es el respaldo.
             "label": filamento.get("name") or filamento.get("material"),

@@ -83,6 +83,31 @@ class TestMaterialResuelto:
         assert entrada["diameter"] == 1.75
         assert entrada["remaining_weight"] == 812
 
+    def test_resuelve_filamento_multicolor(self, client, as_admin, monkeypatch):
+        """Un filamento multicolor no tiene color_hex (queda None) -- sus
+        colores viven en multi_color_hexes, separados por comas."""
+        multicolor_spool = {
+            "id": 9,
+            "filament": {
+                "id": 5, "material": "PLA", "name": " VER/AMA",
+                "vendor": {"id": 1, "name": "KINGROOM "},
+                "density": 1.5, "diameter": 1.75, "weight": 980,
+                "color_hex": None,
+                "multi_color_hexes": "37c53e,f2dd1d",
+                "multi_color_direction": "coaxial",
+            },
+            "remaining_weight": 980, "initial_weight": 980, "used_weight": 0, "archived": False,
+        }
+        _configure(client, monkeypatch)
+        monkeypatch.setattr(SpoolmanClient, "list_spools",
+                            lambda self, allow_archived=False: [multicolor_spool])
+        client.post("/api/spoolman/printers/7125/active-spool", data={"spool_id": 9})
+
+        entrada = client.get("/api/spoolman/printers/active-spools?resolve=true").json()["links"]["7125"]
+        assert entrada["color_hex"] is None
+        assert entrada["multi_color_hexes"] == ["37c53e", "f2dd1d"]
+        assert entrada["multi_color_direction"] == "coaxial"
+
     def test_sin_resolve_devuelve_solo_el_vinculo(self, client, as_admin, monkeypatch):
         """El comportamiento anterior no cambia para quien ya lo usaba."""
         _configure(client, monkeypatch)
