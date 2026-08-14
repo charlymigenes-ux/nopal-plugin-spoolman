@@ -12,6 +12,7 @@
         summary: null,
         alerts: [],
         consumption: {},
+        moonrakerCheck: [],
         activeTab: 'resumen',
         viewMode: 'grid',
         search: '',
@@ -74,6 +75,8 @@
             reserveBtn: 'Reservar', noActiveReservations: 'Sin reservas activas.',
             consumptionThisMonth: 'Consumo de este mes por material',
             noConsumptionYet: 'Todavía no hay consumo registrado este mes. Se va llenando con el uso real que reporte Spoolman.',
+            moonrakerSpoolmanMissingTitle: 'Falta un paso: Moonraker no está reportando consumo real',
+            moonrakerSpoolmanMissingBody: 'Vincular un carrete acá solo le dice a NOPAL qué mostrar en la ficha -- el peso restante no baja solo con cada impresión. Para eso hace falta activar el componente [spoolman] en el moonraker.conf de: {printers}.',
             summaryHint: 'Usá las pestañas de arriba para ver el detalle de Filamentos, Spools, Reservas y Consumo. El panel de la derecha resume el estado de tus impresoras y las alertas activas.',
             noSpoolAssigned: 'Sin spool asignado',
             miniQuoteTitle: 'Cotizador NOPAL', selectedMaterial: 'Material seleccionado', noSpoolsOption: 'Sin spools',
@@ -123,6 +126,8 @@
             reserveBtn: 'Reserve', noActiveReservations: 'No active reservations.',
             consumptionThisMonth: "This month's consumption by material",
             noConsumptionYet: 'No consumption recorded this month yet. It fills in as Spoolman reports real usage.',
+            moonrakerSpoolmanMissingTitle: 'One step missing: Moonraker isn\'t reporting real usage',
+            moonrakerSpoolmanMissingBody: 'Linking a spool here only tells NOPAL what to show on the card -- the remaining weight doesn\'t drop on its own with each print. For that, enable the [spoolman] component in the moonraker.conf of: {printers}.',
             summaryHint: 'Use the tabs above to see the detail for Filaments, Spools, Reservations, and Consumption. The panel on the right summarizes your printers and active alerts.',
             noSpoolAssigned: 'No spool assigned',
             miniQuoteTitle: 'NOPAL Quoter', selectedMaterial: 'Selected material', noSpoolsOption: 'No spools',
@@ -172,6 +177,8 @@
             reserveBtn: 'Reservieren', noActiveReservations: 'Keine aktiven Reservierungen.',
             consumptionThisMonth: 'Verbrauch dieses Monats nach Material',
             noConsumptionYet: 'Für diesen Monat ist noch kein Verbrauch erfasst. Er füllt sich mit der von Spoolman gemeldeten tatsächlichen Nutzung.',
+            moonrakerSpoolmanMissingTitle: 'Ein Schritt fehlt: Moonraker meldet keinen echten Verbrauch',
+            moonrakerSpoolmanMissingBody: 'Eine Spule hier zu verknüpfen sagt NOPAL nur, was auf der Karte angezeigt werden soll -- das verbleibende Gewicht sinkt nicht von selbst bei jedem Druck. Dafür muss die Komponente [spoolman] in der moonraker.conf von {printers} aktiviert werden.',
             summaryHint: 'Nutze die Tabs oben, um Details zu Filamenten, Spulen, Reservierungen und Verbrauch zu sehen. Das Panel rechts fasst den Status deiner Drucker und aktive Warnungen zusammen.',
             noSpoolAssigned: 'Keine Spule zugewiesen',
             miniQuoteTitle: 'NOPAL-Kalkulator', selectedMaterial: 'Ausgewähltes Material', noSpoolsOption: 'Keine Spulen',
@@ -221,6 +228,8 @@
             reserveBtn: 'Réserver', noActiveReservations: 'Aucune réservation active.',
             consumptionThisMonth: 'Consommation de ce mois par matériau',
             noConsumptionYet: "Aucune consommation enregistrée ce mois-ci pour l'instant. Elle se remplit au fur et à mesure que Spoolman rapporte l'usage réel.",
+            moonrakerSpoolmanMissingTitle: 'Il manque une étape : Moonraker ne rapporte pas la consommation réelle',
+            moonrakerSpoolmanMissingBody: "Lier une bobine ici indique seulement à NOPAL quoi afficher sur la fiche -- le poids restant ne diminue pas tout seul à chaque impression. Pour cela, il faut activer le composant [spoolman] dans le moonraker.conf de : {printers}.",
             summaryHint: "Utilisez les onglets ci-dessus pour voir le détail des Filaments, Bobines, Réservations et Consommation. Le panneau de droite résume l'état de vos imprimantes et les alertes actives.",
             noSpoolAssigned: 'Aucune bobine assignée',
             miniQuoteTitle: 'Chiffrage NOPAL', selectedMaterial: 'Matériau sélectionné', noSpoolsOption: 'Aucune bobine',
@@ -270,6 +279,8 @@
             reserveBtn: 'Reservar', noActiveReservations: 'Sem reservas ativas.',
             consumptionThisMonth: 'Consumo deste mês por material',
             noConsumptionYet: 'Ainda não há consumo registrado este mês. Ele vai se preenchendo com o uso real relatado pelo Spoolman.',
+            moonrakerSpoolmanMissingTitle: 'Falta um passo: o Moonraker não está reportando consumo real',
+            moonrakerSpoolmanMissingBody: 'Vincular uma bobina aqui só diz ao NOPAL o que mostrar na ficha -- o peso restante não diminui sozinho a cada impressão. Para isso, é preciso ativar o componente [spoolman] no moonraker.conf de: {printers}.',
             summaryHint: 'Use as abas acima para ver o detalhe de Filamentos, Bobinas, Reservas e Consumo. O painel à direita resume o status das suas impressoras e os alertas ativos.',
             noSpoolAssigned: 'Sem bobina atribuída',
             miniQuoteTitle: 'Orçamento NOPAL', selectedMaterial: 'Material selecionado', noSpoolsOption: 'Sem bobinas',
@@ -362,7 +373,7 @@
     }
 
     async function loadDashboardData() {
-        const [spoolsRes, linksRes, reservationsRes, summaryRes, alertsRes, consumptionRes, printersRes] = await Promise.all([
+        const [spoolsRes, linksRes, reservationsRes, summaryRes, alertsRes, consumptionRes, printersRes, moonrakerCheckRes] = await Promise.all([
             api('/api/spoolman/spools').catch(() => ({ spools: [] })),
             api('/api/spoolman/printers/active-spools').catch(() => ({ links: {} })),
             api('/api/spoolman/reservations').catch(() => ({ reservations: [] })),
@@ -370,6 +381,7 @@
             api('/api/spoolman/alerts').catch(() => ({ alerts: [] })),
             api('/api/spoolman/consumption/monthly').catch(() => ({ by_material: {} })),
             api('/api/printers/status').catch(() => ({ printers: [] })),
+            api('/api/spoolman/moonraker-check').catch(() => ({ printers: [] })),
         ]);
         state.spools = spoolsRes.spools || [];
         state.links = linksRes.links || {};
@@ -378,6 +390,7 @@
         state.alerts = alertsRes.alerts || [];
         state.consumption = consumptionRes.by_material || {};
         state.printers = printersRes.printers || [];
+        state.moonrakerCheck = moonrakerCheckRes.printers || [];
         // Cotizador es opcional -- si no está instalado, /api/pricing/quotes
         // no existe y esto falla en silencio (Reservas simplemente no puede
         // sugerir pedidos, no rompe el resto del plugin).
@@ -636,12 +649,37 @@
     const MATERIAL_COLORS = { PLA: 'var(--green)', PETG: '#3b82f6', ABS: '#ef4444', TPU: 'var(--purple, #a855f7)', ASA: '#06b6d4' };
     const materialColor = material => MATERIAL_COLORS[(material || '').toUpperCase()] || 'var(--spm-accent)';
 
+    // Vincular un carrete en NOPAL (arriba, active-spools) es solo una
+    // etiqueta para la ficha -- quien de verdad resta gramos de Spoolman al
+    // terminar una impresión es el componente [spoolman] de Moonraker,
+    // configurado aparte en moonraker.conf. Sin eso "Consumo" se queda vacío
+    // para siempre aunque se impriman trabajos reales, y eso confunde más
+    // que avisarlo: no es un bug de NOPAL, es un paso de configuración
+    // externo que falta.
+    function renderMoonrakerSpoolmanWarning() {
+        const faltantes = state.moonrakerCheck.filter(p => p.reachable && !p.moonraker_spoolman_configured);
+        if (!faltantes.length) return '';
+        const nombres = faltantes.map(p => {
+            const printer = state.printers.find(pr => pr.port === p.port);
+            return printer?.name || `Klipper ${p.port}`;
+        }).join(', ');
+        return `
+            <div class="spm-moonraker-warning">
+                <span class="spm-moonraker-warning-icon" aria-hidden="true">⚠</span>
+                <div>
+                    <strong>${esc(tr('moonrakerSpoolmanMissingTitle'))}</strong>
+                    <p>${esc(tr('moonrakerSpoolmanMissingBody').replace('{printers}', nombres))}</p>
+                </div>
+            </div>`;
+    }
+
     function renderConsumo() {
         const entries = Object.entries(state.consumption);
         const max = Math.max(1, ...entries.map(([, g]) => g));
         return `
             <div class="spm-consumo">
                 <h3>${tr('consumptionThisMonth')}</h3>
+                ${renderMoonrakerSpoolmanWarning()}
                 ${entries.length ? entries.map(([material, grams]) => `
                     <div class="spm-consumo-row">
                         <span class="spm-consumo-label">${esc(material)}</span>

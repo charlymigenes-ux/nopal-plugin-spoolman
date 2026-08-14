@@ -301,3 +301,38 @@ async def consumption_monthly_endpoint(user: dict = Depends(require_auth)):
     spools = client.list_spools(allow_archived=True)
     consumption_service.reconcile(spools)
     return {"by_material": consumption_service.monthly_summary()}
+
+
+# ── Diagnóstico: ¿Moonraker reporta consumo real? ──
+
+@router.get("/api/spoolman/moonraker-check")
+async def moonraker_spoolman_check_endpoint(user: dict = Depends(require_auth)):
+    """Por cada impresora Klipper con un carrete vinculado en NOPAL, revisa si
+    Moonraker (no NOPAL) tiene su propio componente [spoolman] activo.
+
+    Vincular un carrete acá solo le dice a NOPAL qué mostrar en la ficha --
+    quien de verdad resta gramos de Spoolman al terminar una impresión es
+    Moonraker, con su [spoolman] configurado en moonraker.conf. Sin eso,
+    "Peso Usado" se queda en 0 para siempre aunque se impriman trabajos
+    reales, y no es un bug de NOPAL: es una pieza de configuración externa
+    que falta. /server/info de Moonraker lista sus componentes activos por
+    nombre; si "spoolman" no está ahí, no está configurado.
+    """
+    from backend.services.klipper_service import MoonrakerClient
+
+    links = spool_link_service.get_all_links()
+    resultado = []
+    for port_str in links:
+        try:
+            port = int(port_str)
+        except ValueError:
+            continue
+        info = MoonrakerClient(port).get_server_info()
+        resultado.append({
+            "port": port,
+            # info vacío (Moonraker no respondió) no es lo mismo que
+            # "sin spoolman": no se afirma nada que no se pudo comprobar.
+            "reachable": bool(info),
+            "moonraker_spoolman_configured": "spoolman" in (info.get("components") or []),
+        })
+    return {"printers": resultado}
