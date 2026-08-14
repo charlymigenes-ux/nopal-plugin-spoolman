@@ -145,3 +145,17 @@ def isolated_registries(tmp_path, monkeypatch):
     monkeypatch.setattr(reservation_service, "REGISTRY_PATH", str(tmp_path / "spoolman_reservations.json"))
     monkeypatch.setattr(consumption_service, "LOG_PATH", str(tmp_path / "spoolman_usage_log.json"))
     yield tmp_path
+
+
+@pytest.fixture(autouse=True)
+def no_real_moonraker_calls(monkeypatch):
+    """set_active_spool_endpoint/clear_active_spool_endpoint intentan
+    sincronizar con el Moonraker real de la impresora (MoonrakerClient.
+    set_spoolman_active_spool) -- descubierto en carne propia: sin este
+    fixture, correr esta suite contra un puerto que resulta ser un Moonraker
+    de verdad (ej. 7125, el de esta misma máquina) cambia su spool activo
+    de verdad. Los tests que quieran ejercitar la sincronización de
+    Moonraker monkeypatchean este mismo método explícitamente, con su
+    propio efecto controlado."""
+    from backend.services.klipper_service import MoonrakerClient
+    monkeypatch.setattr(MoonrakerClient, "set_spoolman_active_spool", lambda self, spool_id: False)

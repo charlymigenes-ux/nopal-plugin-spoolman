@@ -241,17 +241,33 @@ async def get_active_spool_endpoint(port: int, user: dict = Depends(require_auth
 async def set_active_spool_endpoint(
     port: int, spool_id: int = Form(...), user: dict = Depends(require_role("admin")),
 ):
+    """Asigna el carrete que la ficha de NOPAL muestra para esta impresora.
+
+    De paso intenta fijar el mismo carrete como "activo" en el componente
+    [spoolman] de Moonraker (moonraker_synced=True si funcionó) -- ese es
+    el que de verdad descuenta gramos reales mientras imprime. Si Moonraker
+    no tiene [spoolman] configurado, esto falla en silencio y el vínculo de
+    NOPAL se guarda igual (moonraker_synced=False): quedarse sin
+    sincronización no debe romper la asignación que se ve en la ficha, ver
+    /api/spoolman/moonraker-check para avisar de eso por separado.
+    """
+    from backend.services.klipper_service import MoonrakerClient
+
     client = _require_client()
     if client.get_spool(spool_id) is None:
         raise HTTPException(status_code=404, detail="Spool no encontrado en Spoolman")
-    return {"success": True, **spool_link_service.set_link(port, spool_id)}
+    sincronizado = MoonrakerClient(port).set_spoolman_active_spool(spool_id)
+    return {"success": True, "moonraker_synced": sincronizado, **spool_link_service.set_link(port, spool_id)}
 
 
 @router.delete("/api/spoolman/printers/{port}/active-spool")
 async def clear_active_spool_endpoint(port: int, user: dict = Depends(require_role("admin"))):
+    from backend.services.klipper_service import MoonrakerClient
+
     if not spool_link_service.clear_link(port):
         raise HTTPException(status_code=404, detail="Esta impresora no tiene spool asignado")
-    return {"success": True}
+    sincronizado = MoonrakerClient(port).set_spoolman_active_spool(None)
+    return {"success": True, "moonraker_synced": sincronizado}
 
 
 # ── Reservas de material para producción ──

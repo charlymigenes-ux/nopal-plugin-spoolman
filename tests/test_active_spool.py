@@ -1,3 +1,4 @@
+from backend.services.klipper_service import MoonrakerClient
 from backend.services.spoolman_spoolman_client import SpoolmanClient
 
 SAMPLE_SPOOL = {
@@ -34,6 +35,36 @@ class TestActiveSpool:
         assert body["linked"] is True
         assert body["spool_id"] == 17
         assert body["spool"]["id"] == 17
+
+    def test_assign_sincroniza_con_moonraker_si_responde(self, client, as_admin, monkeypatch):
+        """El fixture no_real_moonraker_calls (conftest) hace que esto
+        devuelva False por default -- acá se pisa esa vez para probar el
+        camino en que Moonraker sí tiene [spoolman] configurado."""
+        _configure(client, monkeypatch)
+        vistos = []
+        monkeypatch.setattr(MoonrakerClient, "set_spoolman_active_spool",
+                             lambda self, spool_id: vistos.append((self.port, spool_id)) or True)
+        respuesta = client.post("/api/spoolman/printers/7125/active-spool", data={"spool_id": 17})
+        assert respuesta.status_code == 200
+        assert respuesta.json()["moonraker_synced"] is True
+        assert vistos == [(7125, 17)]
+
+    def test_assign_sin_moonraker_configurado_igual_guarda_el_vinculo(self, client, as_admin, monkeypatch):
+        """El fixture no_real_moonraker_calls ya simula esto por default:
+        Moonraker sin [spoolman] no debe romper la asignación en NOPAL."""
+        _configure(client, monkeypatch)
+        respuesta = client.post("/api/spoolman/printers/7125/active-spool", data={"spool_id": 17})
+        assert respuesta.status_code == 200
+        assert respuesta.json()["moonraker_synced"] is False
+        assert client.get("/api/spoolman/printers/7125/active-spool").json()["linked"] is True
+
+    def test_clear_reporta_si_sincronizo_con_moonraker(self, client, as_admin, monkeypatch):
+        _configure(client, monkeypatch)
+        client.post("/api/spoolman/printers/7125/active-spool", data={"spool_id": 17})
+        monkeypatch.setattr(MoonrakerClient, "set_spoolman_active_spool", lambda self, spool_id: True)
+        respuesta = client.delete("/api/spoolman/printers/7125/active-spool")
+        assert respuesta.status_code == 200
+        assert respuesta.json()["moonraker_synced"] is True
 
     def test_assign_unknown_spool_rejected(self, client, as_admin, monkeypatch):
         monkeypatch.setattr(SpoolmanClient, "get_info", lambda self: {"version": "x"})
