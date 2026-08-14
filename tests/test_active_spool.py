@@ -80,6 +80,7 @@ class TestMaterialResuelto:
         assert entrada["label"] == "Blanco"      # el nombre comercial es lo que se reconoce
         assert entrada["material"] == "PLA"
         assert entrada["vendor"] == "SUNLU"
+        assert entrada["diameter"] == 1.75
         assert entrada["remaining_weight"] == 812
 
     def test_sin_resolve_devuelve_solo_el_vinculo(self, client, as_admin, monkeypatch):

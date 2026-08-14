@@ -213,6 +213,7 @@ async def all_active_spools_endpoint(resolve: bool = False, user: dict = Depends
             # reconoce; el material suelto ("PLA") es el respaldo.
             "label": filamento.get("name") or filamento.get("material"),
             "vendor": (filamento.get("vendor") or {}).get("name"),
+            "diameter": filamento.get("diameter"),
             "remaining_weight": (spool or {}).get("remaining_weight"),
         }
     return {"links": resueltos}
