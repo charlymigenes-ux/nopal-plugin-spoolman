@@ -76,7 +76,7 @@
             consumptionThisMonth: 'Consumo de este mes por material',
             noConsumptionYet: 'Todavía no hay consumo registrado este mes. Se va llenando con el uso real que reporte Spoolman.',
             moonrakerSpoolmanMissingTitle: 'Falta un paso: Moonraker no está reportando consumo real',
-            moonrakerSpoolmanMissingBody: 'Vincular un carrete acá solo le dice a NOPAL qué mostrar en la ficha -- el peso restante no baja solo con cada impresión. Para eso hace falta activar el componente [spoolman] en el moonraker.conf de: {printers}.',
+            moonrakerSpoolmanMissingBody: 'Vincular un carrete aquí solo le dice a NOPAL qué mostrar en la ficha -- el peso restante no baja solo con cada impresión. Para eso hace falta activar el componente [spoolman] en el moonraker.conf de: {printers}.',
             summaryHint: 'Usá las pestañas de arriba para ver el detalle de Filamentos, Spools, Reservas y Consumo. El panel de la derecha resume el estado de tus impresoras y las alertas activas.',
             noSpoolAssigned: 'Sin spool asignado',
             miniQuoteTitle: 'Cotizador NOPAL', selectedMaterial: 'Material seleccionado', noSpoolsOption: 'Sin spools',
