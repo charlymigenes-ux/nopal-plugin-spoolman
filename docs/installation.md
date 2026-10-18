@@ -85,8 +85,10 @@ El comando de actualización de la wiki trabaja sobre la carpeta **`~/Spoolman`*
 Si te pasó, vuelve a arrancarlo con `sudo systemctl start Spoolman` y, para que arranque con el equipo, `sudo systemctl enable Spoolman`.
 :::
 
-:::note Versión revisada
-La última versión de Spoolman al revisar esta guía era la **0.27.0** (25 de septiembre de 2026). Las notas de las últimas versiones no anuncian cambios incompatibles en su API. El plugin usa la API `v1` (`/info`, `/spool`, …) y **no se ha probado de forma específica con la 0.27.0**. Si algo no cuadra, ver [Solución de problemas](troubleshooting.md).
+:::note Versión probada
+El plugin se comprobó el **18 de octubre de 2026** contra **Spoolman 0.27.0** (25 de septiembre de 2026) en un servidor real: instalación standalone en Debian 13, con 10 carretes. NOPAL consulta `GET /api/v1/spool` de forma continua y recibe `200`, y la base de datos se migró desde la 0.25.0 sin errores. No se probaron una por una todas las funciones del plugin con esa versión.
+
+Las notas de las últimas versiones de Spoolman no anuncian cambios incompatibles en su API. El plugin usa la API `v1` (`/info`, `/spool`, …). Si algo no cuadra, ver [Solución de problemas](troubleshooting.md).
 :::
 
 ## 2. Lo que el plugin espera de Spoolman
