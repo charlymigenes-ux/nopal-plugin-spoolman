@@ -79,6 +79,12 @@ bash ./scripts/install.sh
 
 El instalador crea un archivo `.env` en la carpeta de Spoolman para sus ajustes (el puerto por defecto es 7912) y un servicio `Spoolman`. Para aplicar cambios: `sudo systemctl restart Spoolman`. Los datos (SQLite) quedan en `~/.local/share/spoolman`.
 
+:::warning Actualizar con el comando de la wiki: ojo con la carpeta
+El comando de actualización de la wiki trabaja sobre la carpeta **`~/Spoolman`** (con mayúscula). Detiene y deshabilita el servicio actual, mueve esa carpeta a `Spoolman_old` e instala la última versión. Si tu Spoolman vive en **otra carpeta** (por ejemplo `~/spoolman`, en minúsculas, que en Linux es una carpeta distinta), el comando puede detener y deshabilitar tu servicio sin llegar a actualizar nada. Antes de ejecutarlo, comprueba con `systemctl cat Spoolman` cuál es el `WorkingDirectory` de tu servicio. Tus datos no corren riesgo: están aparte, en `~/.local/share/spoolman`.
+
+Si te pasó, vuelve a arrancarlo con `sudo systemctl start Spoolman` y, para que arranque con el equipo, `sudo systemctl enable Spoolman`.
+:::
+
 :::note Versión revisada
 La última versión de Spoolman al revisar esta guía era la **0.27.0** (25 de septiembre de 2026). Las notas de las últimas versiones no anuncian cambios incompatibles en su API. El plugin usa la API `v1` (`/info`, `/spool`, …) y **no se ha probado de forma específica con la 0.27.0**. Si algo no cuadra, ver [Solución de problemas](troubleshooting.md).
 :::
