@@ -13,6 +13,15 @@ peso, costo, ubicación); este plugin agrega la capa de negocio encima
 (impresora → spool asignado, pedido → material reservado, cotización →
 costo real), sin duplicar esos datos — solo guarda IDs de referencia.
 
+## Novedades de la 0.3.0
+
+Más datos por carrete (ubicación, valor, temperaturas, etiquetas NFC), filtro
+por ubicación, acciones de administrador sobre el inventario (pesar, registrar
+uso, mover, archivar; con confirmación), botón de respaldo de Spoolman,
+recarga automática cuando el inventario cambia y dos herramientas de solo
+lectura para NOPAL Intelligence (`find_spools`, `get_printer_spools`).
+Detalle en `docs/overview.md`.
+
 ## Requisitos
 
 Un servidor Spoolman corriendo y alcanzable en tu red (por defecto expone

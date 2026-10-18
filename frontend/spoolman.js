@@ -18,6 +18,12 @@
         search: '',
         materialFilter: 'all',
         statusFilter: 'all',
+        locationFilter: 'all',
+        locations: [],
+        isAdmin: false,
+        changeToken: null,
+        detailAction: null,
+        busy: false,
         loading: false,
         alertsExpanded: false,
         // null = todavía no se buscó en esta sesión; [] = se buscó y no
@@ -55,7 +61,7 @@
     const I18N = {
         es: {
             statusLow: 'Bajo', statusReserved: 'Reservado', statusAssigned: 'Asignado', statusAvailable: 'Disponible', availableShort: 'disp.',
-            networkError: 'Error de red', connectedToSpoolman: 'Conectado con Spoolman', couldNotConnect: 'No se pudo conectar con Spoolman',
+            locationAll: 'Todas las ubicaciones', tileInventoryValue: 'Valor del inventario', tileAtCurrentStock: 'según lo que queda', extraInitialUsed: 'Inicial / usado', extraTemps: 'Temperatura sugerida', extraTags: 'Etiquetas NFC', extraPriceRemaining: 'Valor restante', actMeasure: 'Pesar', actUse: 'Registrar uso', actMove: 'Mover', actArchive: 'Archivar', actApply: 'Aplicar', actCancel: 'Cancelar', actMeasureHelp: 'Peso bruto en la báscula (carrete + filamento), en gramos', actUseHelp: 'Gramos que se gastaron', actMoveHelp: 'Nueva ubicación (vacío = sin ubicación)', confirmMeasure: '¿Fijar el restante del carrete #{id} según {weight} g en la báscula? Esto cambia el inventario de Spoolman.', confirmUse: '¿Descontar {weight} g del carrete #{id}? Esto cambia el inventario de Spoolman.', confirmArchive: '¿Archivar el carrete #{id}? Deja de aparecer en el inventario activo (se puede restaurar en Spoolman).', inventoryUpdated: 'Inventario actualizado', couldNotUpdateInventory: 'No se pudo actualizar el inventario', backupBtn: 'Respaldo de Spoolman', backupDone: 'Spoolman guardó una copia de su base de datos', backupHelp: 'Pide a Spoolman una copia de su base de datos. La guarda él en su propio equipo.', confirmBackup: '¿Pedir a Spoolman una copia de su base de datos ahora?', networkError: 'Error de red', connectedToSpoolman: 'Conectado con Spoolman', couldNotConnect: 'No se pudo conectar con Spoolman',
             tileActiveSpools: 'Bobinas activas', tileInInventory: 'en inventario', tileAvailable: 'Disponible', tileReadyToUse: 'listo para usar',
             tileLowStock: 'Bajo inventario', tileNeedAttention: 'requieren atención', tileReserved: 'Reservado', tileForProduction: 'para producción',
             tileMonthConsumption: 'Consumo del mes', tileThisMonth: 'este mes',
@@ -106,7 +112,7 @@
         },
         en: {
             statusLow: 'Low', statusReserved: 'Reserved', statusAssigned: 'Assigned', statusAvailable: 'Available', availableShort: 'avail.',
-            networkError: 'Network error', connectedToSpoolman: 'Connected to Spoolman', couldNotConnect: 'Could not connect to Spoolman',
+            locationAll: 'All locations', tileInventoryValue: 'Inventory value', tileAtCurrentStock: 'at current stock', extraInitialUsed: 'Initial / used', extraTemps: 'Suggested temperature', extraTags: 'NFC tags', extraPriceRemaining: 'Remaining value', actMeasure: 'Weigh', actUse: 'Log usage', actMove: 'Move', actArchive: 'Archive', actApply: 'Apply', actCancel: 'Cancel', actMeasureHelp: 'Gross weight on the scale (spool + filament), in grams', actUseHelp: 'Grams used', actMoveHelp: 'New location (empty = no location)', confirmMeasure: 'Set spool #{id} remaining weight from {weight} g on the scale? This changes the Spoolman inventory.', confirmUse: 'Subtract {weight} g from spool #{id}? This changes the Spoolman inventory.', confirmArchive: 'Archive spool #{id}? It leaves the active inventory (it can be restored in Spoolman).', inventoryUpdated: 'Inventory updated', couldNotUpdateInventory: 'Could not update the inventory', backupBtn: 'Spoolman backup', backupDone: 'Spoolman saved a copy of its database', backupHelp: 'Asks Spoolman for a copy of its database. It stores it on its own machine.', confirmBackup: 'Ask Spoolman for a copy of its database now?', networkError: 'Network error', connectedToSpoolman: 'Connected to Spoolman', couldNotConnect: 'Could not connect to Spoolman',
             tileActiveSpools: 'Active spools', tileInInventory: 'in inventory', tileAvailable: 'Available', tileReadyToUse: 'ready to use',
             tileLowStock: 'Low stock', tileNeedAttention: 'need attention', tileReserved: 'Reserved', tileForProduction: 'for production',
             tileMonthConsumption: 'Month consumption', tileThisMonth: 'this month',
@@ -341,7 +347,15 @@
     }
 
     function fmtMoney(value) {
-        return `$${(Number(value) || 0).toFixed(2)}`;
+        const amount = Number(value) || 0;
+        const code = state.summary?.currency;
+        if (!code) return `$${amount.toFixed(2)}`;
+        try {
+            return new Intl.NumberFormat(lang(), { style: 'currency', currency: code }).format(amount);
+        } catch (error) {
+            // Código que Intl no conoce (p. ej. el antiguo MXP): se muestra tal cual.
+            return `$${amount.toFixed(2)} ${code}`;
+        }
     }
 
     function spoolLabel(spool) {
@@ -394,6 +408,9 @@
         // Cotizador es opcional -- si no está instalado, /api/pricing/quotes
         // no existe y esto falla en silencio (Reservas simplemente no puede
         // sugerir pedidos, no rompe el resto del plugin).
+        state.locations = (await api('/api/spoolman/locations').catch(() => ({ locations: [] }))).locations || [];
+        if (!state.isAdmin) state.isAdmin = (await api('/api/auth/me').catch(() => ({}))).role === 'admin';
+        state.changeToken = (await api('/api/spoolman/changes').catch(() => ({}))).token || null;
         state.quotes = (await api('/api/pricing/quotes').catch(() => ({ quotes: [] }))).quotes || [];
     }
 
@@ -468,6 +485,7 @@
                 ${statTile(icon(ICON_ALERT, 22), tr('tileLowStock'), summary.low_stock_count, tr('tileNeedAttention'), 'orange')}
                 ${statTile(icon(ICON_LOCK, 22), tr('tileReserved'), `${summary.reserved_kg} kg`, tr('tileForProduction'), 'purple')}
                 ${statTile(icon(ICON_CHART, 22), tr('tileMonthConsumption'), `${summary.consumption_month_kg} kg`, tr('tileThisMonth'), 'blue')}
+                ${summary.inventory_value ? statTile(icon(ICON_SCALE, 22), tr('tileInventoryValue'), fmtMoney(summary.inventory_value), tr('tileAtCurrentStock'), 'green') : ''}
             </div>`;
     }
 
@@ -484,6 +502,7 @@
             const filament = spool.filament || {};
             if (state.materialFilter !== 'all' && (filament.material || '') !== state.materialFilter) return false;
             if (state.statusFilter !== 'all' && spoolStatus(spool).key !== state.statusFilter) return false;
+            if (state.locationFilter !== 'all' && (spool.location || '') !== state.locationFilter) return false;
             if (state.search) {
                 const haystack = `${filament.material || ''} ${filament.name || ''} ${(filament.vendor || {}).name || ''} ${spool.location || ''} #${spool.id}`.toLowerCase();
                 if (!haystack.includes(state.search.toLowerCase())) return false;
@@ -550,7 +569,12 @@
             <div class="spm-detail-row"><span>${tr('locationLabel')}</span><strong>${esc(spool.location || tr('noLocation'))}</strong></div>
             ${spool.lot_nr ? `<div class="spm-detail-row"><span>${tr('lotLabel')}</span><strong>${esc(spool.lot_nr)}</strong></div>` : ''}
             <div class="spm-detail-row"><span>${tr('assignedPrinterLabel')}</span><strong>${linkedPrinter ? esc(linkedPrinter.name || `${tr('printerFallback')} ${linkedPort}`) : tr('unassigned')}</strong></div>
+            <div class="spm-detail-row"><span>${tr('extraInitialUsed')}</span><strong>${esc(fmtWeight(initial))} / ${esc(fmtWeight(spool.used_weight ?? 0))}</strong></div>
+            ${price && initial ? `<div class="spm-detail-row"><span>${tr('extraPriceRemaining')}</span><strong>${fmtMoney(price * Math.min(remaining / initial, 1))}</strong></div>` : ''}
+            ${filament.settings_extruder_temp || filament.settings_bed_temp ? `<div class="spm-detail-row"><span>${tr('extraTemps')}</span><strong>${filament.settings_extruder_temp ? `${filament.settings_extruder_temp} °C` : '—'} / ${filament.settings_bed_temp ? `${filament.settings_bed_temp} °C` : '—'}</strong></div>` : ''}
+            ${(spool.tags || []).length ? `<div class="spm-detail-row"><span>${tr('extraTags')}</span><strong>${esc(spool.tags.map(t => t.uid || t).join(', '))}</strong></div>` : ''}
             ${spool.comment ? `<div class="spm-detail-row"><span>${tr('noteLabel')}</span><strong>${esc(spool.comment)}</strong></div>` : ''}
+            ${state.isAdmin ? renderSpoolActions(spool) : ''}
             <div class="spm-detail-reservations">
                 <h4>${tr('activeReservationsLabel')}</h4>
                 ${spoolReservations.length ? spoolReservations.map(r => `
@@ -559,6 +583,92 @@
                         <strong>${esc(fmtWeight(r.grams))}</strong>
                     </div>`).join('') : `<div class="spm-empty">${tr('noReservationsForSpool')}</div>`}
             </div>`;
+    }
+
+    // Acciones de escritura sobre el inventario (solo admin; el servidor lo
+    // vuelve a exigir). Cada una pide confirmación antes de tocar Spoolman.
+    function renderSpoolActions(spool) {
+        const help = { measure: tr('actMeasureHelp'), use: tr('actUseHelp'), move: tr('actMoveHelp') }[state.detailAction];
+        const form = state.detailAction ? `
+            <form class="spm-action-form" id="spm-action-form" data-spm-action-spool="${spool.id}">
+                <label class="spm-action-help" for="spm-action-input">${esc(help)}</label>
+                ${state.detailAction === 'move'
+                    ? `<input id="spm-action-input" class="spm-search" list="spm-location-list" value="${esc(spool.location || '')}" maxlength="80">
+                       <datalist id="spm-location-list">${state.locations.map(l => `<option value="${esc(l)}">`).join('')}</datalist>`
+                    : `<input id="spm-action-input" class="spm-search" type="number" min="0.1" max="100000" step="any" inputmode="decimal" required>`}
+                <div class="spm-action-buttons">
+                    <button type="submit" class="spm-btn-accent" ${state.busy ? 'disabled' : ''}>${tr('actApply')}</button>
+                    <button type="button" class="spm-btn-danger" data-spm-action-cancel>${tr('actCancel')}</button>
+                </div>
+            </form>` : '';
+        return `
+            <div class="spm-detail-actions">
+                <button type="button" class="spm-btn-accent" data-spm-action="measure">${tr('actMeasure')}</button>
+                <button type="button" class="spm-btn-accent" data-spm-action="use">${tr('actUse')}</button>
+                <button type="button" class="spm-btn-accent" data-spm-action="move">${tr('actMove')}</button>
+                <button type="button" class="spm-btn-danger" data-spm-action="archive" data-spm-archive-spool="${spool.id}">${tr('actArchive')}</button>
+            </div>
+            ${form}`;
+    }
+
+    async function applySpoolChange(request, spoolId) {
+        state.busy = true;
+        try {
+            await request();
+            toast(tr('inventoryUpdated'));
+            state.detailAction = null;
+            await loadDashboardData();
+        } catch (error) {
+            alertDialog(error.message || tr('couldNotUpdateInventory'));
+        } finally {
+            state.busy = false;
+            render();
+        }
+    }
+
+    async function handleSpoolActionSubmit(event) {
+        event.preventDefault();
+        const spoolId = Number(event.target.dataset.spmActionSpool);
+        const value = event.target.querySelector('#spm-action-input').value;
+        const kind = state.detailAction;
+        const form = new FormData();
+        let url = `/api/spoolman/spools/${spoolId}`;
+        let method = 'PUT';
+        if (kind === 'move') {
+            form.set('location', value);
+            method = 'PATCH';
+        } else {
+            if (!(Number(value) > 0)) return;
+            if (!await confirmDialog(tr(kind === 'measure' ? 'confirmMeasure' : 'confirmUse', { id: spoolId, weight: value }), tr(kind === 'measure' ? 'actMeasure' : 'actUse'))) return;
+            form.set(kind === 'measure' ? 'weight' : 'use_weight', value);
+            url += kind === 'measure' ? '/measure' : '/use';
+        }
+        await applySpoolChange(() => api(url, { method, body: form }), spoolId);
+    }
+
+    async function handleBackup() {
+        if (!await confirmDialog(tr('confirmBackup'), tr('backupBtn'))) return;
+        try {
+            await api('/api/spoolman/backup', { method: 'POST' });
+            toast(tr('backupDone'));
+        } catch (error) {
+            alertDialog(error.message || tr('couldNotUpdateInventory'));
+        }
+    }
+
+    // El panel no recibe avisos de Spoolman: pregunta por una huella barata
+    // y solo recarga cuando cambia (p. ej. Moonraker descontó filamento al
+    // terminar una impresión). Se detiene si la sección no está a la vista.
+    let changesTimer = null;
+    async function pollChanges() {
+        if (!root || document.hidden || state.busy || !state.config?.configured || root.offsetParent === null) return;
+        const token = (await api('/api/spoolman/changes').catch(() => ({}))).token || null;
+        if (token && state.changeToken && token !== state.changeToken && !state.detailAction) {
+            await loadDashboardData();
+            render();
+        } else if (token) {
+            state.changeToken = token;
+        }
     }
 
     function renderFilamentos() {
@@ -578,6 +688,10 @@
                     <option value="reserved" ${state.statusFilter === 'reserved' ? 'selected' : ''}>${tr('statusReserved')}</option>
                     <option value="low" ${state.statusFilter === 'low' ? 'selected' : ''}>${tr('statusLow')}</option>
                 </select>
+                ${state.locations.length ? `<select class="spm-select" id="spm-location-filter">
+                    <option value="all">${tr('locationAll')}</option>
+                    ${state.locations.map(l => `<option value="${esc(l)}" ${state.locationFilter === l ? 'selected' : ''}>${esc(l)}</option>`).join('')}
+                </select>` : ''}
                 <div class="spm-view-switch">
                     <button type="button" class="spm-icon-btn${state.viewMode === 'grid' ? ' active' : ''}" data-spm-view="grid">${icon(ICON_GRID, 16)}</button>
                     <button type="button" class="spm-icon-btn${state.viewMode === 'list' ? ' active' : ''}" data-spm-view="list">${icon(ICON_LIST, 16)}</button>
@@ -942,6 +1056,7 @@
                     <div class="spm-panel-dialog">
                         <div class="spm-panel-header"><strong>${tr('spoolmanSettingsTitle')}</strong><button type="button" data-spm-close-settings>${icon('<path d="M18 6 6 18M6 6l12 12"/>', 16)}</button></div>
                         ${renderConfigForm()}
+                        ${state.config?.configured && state.isAdmin ? `<div class="spm-backup-block"><button type="button" class="spm-btn-accent" id="spm-backup-btn">${tr('backupBtn')}</button><small>${tr('backupHelp')}</small></div>` : ''}
                         ${state.config?.configured ? `<button type="button" class="spm-btn-danger" id="spm-disconnect-btn">${tr('disconnectBtn')}</button>` : ''}
                     </div>
                 </div>
@@ -1091,6 +1206,7 @@
         root.querySelector('#spm-search')?.addEventListener('input', event => { state.search = event.target.value; render(); });
         root.querySelector('#spm-material-filter')?.addEventListener('change', event => { state.materialFilter = event.target.value; render(); });
         root.querySelector('#spm-status-filter')?.addEventListener('change', event => { state.statusFilter = event.target.value; render(); });
+        root.querySelector('#spm-location-filter')?.addEventListener('change', event => { state.locationFilter = event.target.value; render(); });
 
         root.querySelectorAll('[data-spm-open-settings-inline]').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -1176,6 +1292,7 @@
             if (panel) panel.hidden = true;
         });
         root.querySelector('#spm-config-form')?.addEventListener('submit', handleConfigSubmit);
+        root.querySelector('#spm-backup-btn')?.addEventListener('click', handleBackup);
         root.querySelector('#spm-disconnect-btn')?.addEventListener('click', async () => {
             const confirmed = await confirmDialog(tr('confirmDisconnectSpoolman'), tr('disconnectBtn'));
             if (!confirmed) return;
@@ -1189,6 +1306,27 @@
     // (para reflejar el spool elegido en state.detailSpoolId), así que su
     // botón de cerrar se re-bindea cada vez, igual que bindSettingsPanelEvents().
     function bindSpoolDetailPanelEvents() {
+        const detail = root.querySelector('#spm-spool-detail-panel');
+        detail?.querySelectorAll('[data-spm-action]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const kind = btn.dataset.spmAction;
+                if (kind === 'archive') {
+                    const spoolId = Number(btn.dataset.spmArchiveSpool);
+                    if (!await confirmDialog(tr('confirmArchive', { id: spoolId }), tr('actArchive'))) return;
+                    const form = new FormData();
+                    form.set('archived', 'true');
+                    await applySpoolChange(() => api(`/api/spoolman/spools/${spoolId}`, { method: 'PATCH', body: form }), spoolId);
+                    const panel = root.querySelector('#spm-spool-detail-panel');
+                    if (panel) panel.hidden = true;
+                    return;
+                }
+                state.detailAction = kind;
+                render();
+                root.querySelector('#spm-action-input')?.focus();
+            });
+        });
+        detail?.querySelector('[data-spm-action-cancel]')?.addEventListener('click', () => { state.detailAction = null; render(); });
+        detail?.querySelector('#spm-action-form')?.addEventListener('submit', handleSpoolActionSubmit);
         root.querySelector('#spm-spool-detail-panel .spm-panel-dialog [data-spm-close-spool-detail]')?.addEventListener('click', () => {
             const panel = root.querySelector('#spm-spool-detail-panel');
             if (panel) panel.hidden = true;
@@ -1222,10 +1360,12 @@
 
         bindChromeEvents();
         refreshAll();
+        changesTimer = setInterval(pollChanges, 10000);
         window.applySidebarOrder?.();
     }
 
     function unmount() {
+        clearInterval(changesTimer);
         document.querySelector(`[data-plugin-nav="${PLUGIN_ID}"]`)?.remove();
         document.getElementById('spoolman-section')?.remove();
         root = null;
@@ -1238,6 +1378,6 @@
     window.addEventListener('nopal:language-changed', () => { if (root) render(); });
 
     window.NopalPluginRegistry = window.NopalPluginRegistry || {};
-    window.NopalPluginRegistry[PLUGIN_ID] = { mount, unmount, version: '0.2.0' };
+    window.NopalPluginRegistry[PLUGIN_ID] = { mount, unmount, version: '0.3.0' };
     mount();
 })();

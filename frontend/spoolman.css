@@ -480,3 +480,13 @@
     .spm-tiles { grid-template-columns: repeat(2, 1fr); }
     .spm-consumo-row { grid-template-columns: 70px 1fr auto; }
 }
+
+/* ── Acciones de inventario (solo admin) ── */
+.spm-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.spm-action-form { display: flex; flex-direction: column; gap: 8px; }
+.spm-action-help { font-size: .78rem; color: var(--text-muted); }
+.spm-action-buttons { display: flex; gap: 8px; }
+.spm-backup-block { display: flex; flex-direction: column; gap: 6px; }
+.spm-backup-block small { color: var(--text-muted); font-size: .72rem; }
+.spm-tile, .spm-tile-body { min-width: 0; }
+.spm-tile-value { overflow-wrap: anywhere; }
