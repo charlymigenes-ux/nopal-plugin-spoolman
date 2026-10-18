@@ -6,6 +6,9 @@ solo admin (require_role("admin")) -- mismo criterio que camera-viewer al
 registrar cámaras.
 """
 
+import asyncio
+import hashlib
+import json
 import logging
 from typing import Any, Dict, Optional
 
@@ -14,7 +17,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException
 from backend.auth_deps import require_auth, require_role
 
 from .services import config_service, consumption_service, discovery_service, reservation_service, spool_link_service
-from .services.spoolman_client import SpoolmanClient
+from .services.spoolman_client import SpoolmanClient, SpoolmanWriteError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -120,6 +123,13 @@ async def summary_endpoint(user: dict = Depends(require_auth)):
     total_reserved_g = sum(reservation_service.reserved_grams_for_spool(s["id"]) for s in spools)
     low_stock_count = sum(1 for s in spools if (s.get("remaining_weight") or 0) < threshold)
     month_total_g = sum(consumption_service.monthly_summary().values())
+    # Valor del inventario: precio del carrete proporcional a lo que queda.
+    # Solo cuenta los carretes con precio y peso inicial; no inventa el resto.
+    inventory_value = 0.0
+    for s in spools:
+        price, initial = s.get("price"), s.get("initial_weight")
+        if price and initial:
+            inventory_value += price * min((s.get("remaining_weight") or 0) / initial, 1)
 
     return {
         "active_spools": len(spools),
@@ -127,6 +137,8 @@ async def summary_endpoint(user: dict = Depends(require_auth)):
         "low_stock_count": low_stock_count,
         "reserved_kg": round(total_reserved_g / 1000, 2),
         "consumption_month_kg": round(month_total_g / 1000, 2),
+        "inventory_value": round(inventory_value, 2),
+        "currency": client.get_currency(),
     }
 
 
@@ -352,3 +364,229 @@ async def moonraker_spoolman_check_endpoint(user: dict = Depends(require_auth)):
             "moonraker_spoolman_configured": "spoolman" in (info.get("components") or []),
         })
     return {"printers": resultado}
+
+
+# ── Más datos de Spoolman (solo lectura) ──
+
+@router.get("/api/spoolman/locations")
+async def locations_endpoint(user: dict = Depends(require_auth)):
+    return {"locations": _require_client().list_locations()}
+
+
+@router.get("/api/spoolman/filaments")
+async def filaments_endpoint(user: dict = Depends(require_auth)):
+    filaments = _require_client().list_filaments()
+    return {"filaments": [
+        {
+            "id": f.get("id"),
+            "name": f.get("name"),
+            "material": f.get("material"),
+            "vendor": (f.get("vendor") or {}).get("name"),
+            "color_hex": f.get("color_hex"),
+            "weight": f.get("weight"),
+            "spool_weight": f.get("spool_weight"),
+            "price": f.get("price"),
+        }
+        for f in filaments
+    ]}
+
+
+@router.get("/api/spoolman/changes")
+async def changes_endpoint(user: dict = Depends(require_auth)):
+    """Huella barata del inventario, para que el panel sepa si algo cambió
+    (por Spoolman, por Moonraker al terminar una impresión, por otra
+    persona) sin repintar todo cada vez. No es un canal push: el panel la
+    consulta cada pocos segundos y solo recarga cuando `token` cambia."""
+    client = _require_client()
+    spools = client.list_spools(allow_archived=True)
+    huella = [
+        [s.get("id"), s.get("remaining_weight"), s.get("used_weight"), s.get("location"), s.get("archived"), s.get("last_used")]
+        for s in spools
+    ]
+    token = hashlib.sha1(json.dumps(huella, sort_keys=True, default=str).encode()).hexdigest()[:12]
+    return {"token": token, "spools": len(spools)}
+
+
+# ── Escrituras sobre el inventario (solo admin) ──
+#
+# Todas modifican datos reales de Spoolman, por eso exigen admin y devuelven
+# el error de Spoolman si no se aplicaron (nunca un "ok" falso).
+
+def _write_error(exc: SpoolmanWriteError) -> HTTPException:
+    status = 404 if exc.status == 404 else 400 if exc.status in (400, 422) else 502
+    return HTTPException(status_code=status, detail=str(exc))
+
+
+def _positive(value: float, name: str) -> float:
+    if not 0 < value <= 100000:
+        raise HTTPException(status_code=400, detail=f"{name} debe ser mayor que 0 y razonable")
+    return value
+
+
+@router.put("/api/spoolman/spools/{spool_id}/measure")
+async def measure_spool_endpoint(spool_id: int, weight: float = Form(...), user: dict = Depends(require_role("admin"))):
+    """Peso bruto medido en la báscula (carrete + filamento); Spoolman
+    descuenta el peso del carrete vacío y calcula lo que queda."""
+    client = _require_client()
+    try:
+        return _with_reservation_fields(client.measure_spool(spool_id, _positive(weight, "El peso")))
+    except SpoolmanWriteError as exc:
+        raise _write_error(exc)
+
+
+@router.put("/api/spoolman/spools/{spool_id}/use")
+async def use_spool_endpoint(spool_id: int, use_weight: float = Form(...), user: dict = Depends(require_role("admin"))):
+    client = _require_client()
+    try:
+        return _with_reservation_fields(client.use_spool(spool_id, _positive(use_weight, "El consumo")))
+    except SpoolmanWriteError as exc:
+        raise _write_error(exc)
+
+
+@router.patch("/api/spoolman/spools/{spool_id}")
+async def update_spool_endpoint(
+    spool_id: int,
+    location: Optional[str] = Form(None),
+    archived: Optional[bool] = Form(None),
+    comment: Optional[str] = Form(None),
+    user: dict = Depends(require_role("admin")),
+):
+    """Solo ubicación, archivado y comentario: lo que el panel necesita.
+    El resto de los campos se edita en la interfaz de Spoolman."""
+    fields: Dict[str, Any] = {}
+    if location is not None:
+        fields["location"] = location.strip()
+    if archived is not None:
+        fields["archived"] = archived
+    if comment is not None:
+        fields["comment"] = comment
+    if not fields:
+        raise HTTPException(status_code=400, detail="No hay nada que cambiar")
+    client = _require_client()
+    try:
+        return _with_reservation_fields(client.update_spool(spool_id, fields))
+    except SpoolmanWriteError as exc:
+        raise _write_error(exc)
+
+
+@router.post("/api/spoolman/spools")
+async def create_spool_endpoint(
+    filament_id: int = Form(...),
+    initial_weight: Optional[float] = Form(None),
+    location: str = Form(""),
+    user: dict = Depends(require_role("admin")),
+):
+    fields: Dict[str, Any] = {"filament_id": filament_id}
+    if initial_weight is not None:
+        fields["initial_weight"] = _positive(initial_weight, "El peso inicial")
+    if location.strip():
+        fields["location"] = location.strip()
+    client = _require_client()
+    try:
+        return _with_reservation_fields(client.create_spool(fields))
+    except SpoolmanWriteError as exc:
+        raise _write_error(exc)
+
+
+@router.post("/api/spoolman/backup")
+async def backup_endpoint(user: dict = Depends(require_role("admin"))):
+    """Pide a Spoolman una copia de su base de datos (la guarda él, en su
+    propio equipo; NOPAL no la descarga)."""
+    client = _require_client()
+    try:
+        return {"success": True, "result": client.backup()}
+    except SpoolmanWriteError as exc:
+        raise _write_error(exc)
+
+
+# ── Herramientas para NOPAL Intelligence (solo lectura) ──
+#
+# Contrato en docs/NOPAL_INTELLIGENCE.md del core. Se declaran solo si el
+# core es lo bastante nuevo para tener `Tool` y `Action`; en uno anterior el
+# plugin sigue funcionando sin ellas.
+
+def _tool_find_spools(material: str = "", color: str = "", vendor: str = "", location: str = "") -> Dict[str, Any]:
+    client = config_service.get_client()
+    if client is None:
+        return {"available": False, "reason": "Spoolman no está configurado"}
+    wanted = {"material": material, "color": color, "vendor": vendor, "location": location}
+    wanted = {k: v.strip().lower() for k, v in wanted.items() if v and v.strip()}
+    found = []
+    for spool in client.list_spools():
+        filament = spool.get("filament") or {}
+        fields = {
+            "material": filament.get("material") or "",
+            "color": filament.get("name") or "",
+            "vendor": (filament.get("vendor") or {}).get("name") or "",
+            "location": spool.get("location") or "",
+        }
+        if all(text in fields[key].lower() for key, text in wanted.items()):
+            spool = _with_reservation_fields(spool)
+            found.append({
+                "id": spool.get("id"),
+                **fields,
+                "remaining_g": spool.get("remaining_weight"),
+                "available_g": spool.get("available_weight"),
+            })
+    return {"available": True, "count": len(found), "spools": found[:30]}
+
+
+def _tool_printer_spools() -> Dict[str, Any]:
+    client = config_service.get_client()
+    if client is None:
+        return {"available": False, "reason": "Spoolman no está configurado"}
+    spools = {str(s.get("id")): s for s in client.list_spools()}
+    printers = []
+    for port, link in spool_link_service.get_all_links().items():
+        spool = spools.get(str(link.get("spool_id")))
+        filament = (spool or {}).get("filament") or {}
+        printers.append({
+            "printer_port": port,
+            "spool_id": link.get("spool_id"),
+            "material": filament.get("material"),
+            "color": filament.get("name"),
+            "remaining_g": (spool or {}).get("remaining_weight"),
+        })
+    return {"available": True, "printers": printers}
+
+
+def _declare_ai_tools():
+    try:
+        from backend.services.ai_tools import Tool
+        from backend.services.authorization_policy import Action
+    except ImportError:
+        return []
+
+    async def find_spools(material: str = "", color: str = "", vendor: str = "", location: str = ""):
+        return await asyncio.get_event_loop().run_in_executor(
+            None, lambda: _tool_find_spools(material, color, vendor, location),
+        )
+
+    async def printer_spools():
+        return await asyncio.get_event_loop().run_in_executor(None, _tool_printer_spools)
+
+    def text(description: str) -> Dict[str, str]:
+        return {"type": "string", "description": description}
+
+    return [
+        Tool(
+            "find_spools",
+            "Busca carretes de filamento en el inventario (Spoolman) por material, color o nombre, marca o ubicación. "
+            "Devuelve los gramos que quedan y los realmente disponibles tras las reservas.",
+            find_spools,
+            {"type": "object", "required": [], "properties": {
+                "material": text("Material, p. ej. PLA o PETG"), "color": text("Color o nombre del filamento"),
+                "vendor": text("Marca"), "location": text("Ubicación"),
+            }},
+            policy_action=Action.USE_PLUGIN,
+        ),
+        Tool(
+            "get_printer_spools",
+            "Dice qué carrete tiene cargado cada impresora y cuánto filamento le queda.",
+            printer_spools,
+            policy_action=Action.USE_PLUGIN,
+        ),
+    ]
+
+
+AI_TOOLS = _declare_ai_tools()

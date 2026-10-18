@@ -2,14 +2,17 @@
   "schema_version": 1,
   "id": "spoolman",
   "name": "Materiales",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "NOPAL Labs",
   "category": "Producción",
   "description": "Conecta NOPAL con un servidor Spoolman para ver tu inventario real de spools de filamento, asignarlos a tus impresoras Klipper y usar sus costos reales en el Cotizador.",
   "permissions": [
     "Conectar con un servidor Spoolman en tu red",
     "Guardar qué spool está cargado en cada impresora",
-    "Guardar reservas de material para producción"
+    "Guardar reservas de material para producción",
+    "Modificar el inventario de Spoolman (solo administradores): pesar, registrar uso, mover y archivar carretes",
+    "Pedir a Spoolman una copia de su base de datos (solo administradores)",
+    "Ofrecer a NOPAL Intelligence consultas de solo lectura del inventario"
   ],
   "compatibility": ["Impresión 3D"],
   "frontend": {
