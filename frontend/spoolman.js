@@ -469,7 +469,7 @@
             <div class="spm-tile">
                 <div class="spm-tile-icon spm-tile-icon-${colorKey}">${iconSvg}</div>
                 <div class="spm-tile-body">
-                    <span class="spm-tile-value">${esc(value)}</span>
+                    <span class="spm-tile-value"${String(value).length > 9 ? ' style="font-size:1.05rem"' : ''}>${esc(value)}</span>
                     <span class="spm-tile-label">${esc(label)}</span>
                     ${sub ? `<span class="spm-tile-sub">${esc(sub)}</span>` : ''}
                 </div>
