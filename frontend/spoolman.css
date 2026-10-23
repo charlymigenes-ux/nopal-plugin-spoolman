@@ -323,7 +323,7 @@
    más abajo: sin el mínimo en 0, el <select> del cotizador (con nombres de
    spool largos) fija el ancho mínimo de columna a su min-content y las 3
    tarjetas terminan empujando el layout fuera de la pantalla. */
-.spm-sidebar-mini-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.spm-sidebar-mini-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .spm-sidebar-mini-row .spm-sidebar-card { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .spm-sidebar-mini-row .spm-sidebar-card h3 { margin: 0; }
 
@@ -489,4 +489,4 @@
 .spm-backup-block { display: flex; flex-direction: column; gap: 6px; }
 .spm-backup-block small { color: var(--text-muted); font-size: .72rem; }
 .spm-tile, .spm-tile-body { min-width: 0; }
-.spm-tile-value { overflow-wrap: anywhere; }
+.spm-tile-value { white-space: nowrap; }

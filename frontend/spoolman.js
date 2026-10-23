@@ -469,7 +469,7 @@
             <div class="spm-tile">
                 <div class="spm-tile-icon spm-tile-icon-${colorKey}">${iconSvg}</div>
                 <div class="spm-tile-body">
-                    <span class="spm-tile-value">${esc(value)}</span>
+                    <span class="spm-tile-value"${String(value).length > 9 ? ' style="font-size:1.05rem"' : ''}>${esc(value)}</span>
                     <span class="spm-tile-label">${esc(label)}</span>
                     ${sub ? `<span class="spm-tile-sub">${esc(sub)}</span>` : ''}
                 </div>
@@ -644,6 +644,11 @@
             url += kind === 'measure' ? '/measure' : '/use';
         }
         await applySpoolChange(() => api(url, { method, body: form }), spoolId);
+    }
+
+    function renderBackupBlock() {
+        if (!state.config?.configured || !state.isAdmin) return '';
+        return `<div class="spm-backup-block"><button type="button" class="spm-btn-accent" id="spm-backup-btn">${tr('backupBtn')}</button><small>${tr('backupHelp')}</small></div>`;
     }
 
     async function handleBackup() {
@@ -1056,7 +1061,7 @@
                     <div class="spm-panel-dialog">
                         <div class="spm-panel-header"><strong>${tr('spoolmanSettingsTitle')}</strong><button type="button" data-spm-close-settings>${icon('<path d="M18 6 6 18M6 6l12 12"/>', 16)}</button></div>
                         ${renderConfigForm()}
-                        ${state.config?.configured && state.isAdmin ? `<div class="spm-backup-block"><button type="button" class="spm-btn-accent" id="spm-backup-btn">${tr('backupBtn')}</button><small>${tr('backupHelp')}</small></div>` : ''}
+                        ${renderBackupBlock()}
                         ${state.config?.configured ? `<button type="button" class="spm-btn-danger" id="spm-disconnect-btn">${tr('disconnectBtn')}</button>` : ''}
                     </div>
                 </div>
@@ -1121,6 +1126,7 @@
             panelDialog.innerHTML = `
                 <div class="spm-panel-header"><strong>${tr('spoolmanSettingsTitle')}</strong><button type="button" data-spm-close-settings>${icon('<path d="M18 6 6 18M6 6l12 12"/>', 16)}</button></div>
                 ${renderConfigForm()}
+                ${renderBackupBlock()}
                 ${state.config?.configured ? `<button type="button" class="spm-btn-danger" id="spm-disconnect-btn">${tr('disconnectBtn')}</button>` : ''}`;
         }
         const detailDialog = root.querySelector('#spm-spool-detail-panel .spm-panel-dialog');
